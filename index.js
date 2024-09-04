@@ -5,8 +5,10 @@ void function() {
   canvas.width = 800;
   canvas.height = 600;
 
-  ctx.clearColor(0.0, 0.0, 0.0, 1.0);
-  ctx.clear(ctx.COLOR_BUFFER_BIT);
+  window.requestAnimationFrame(() => {
+    ctx.clearColor(0.0, 0.0, 0.0, 1.0);
+    ctx.clear(ctx.COLOR_BUFFER_BIT);
+  })
 
   document.body.appendChild(canvas);
 }();
