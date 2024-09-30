@@ -1,0 +1,292 @@
+
+NOTES FOR SEPT 18 CLASS AND HOMEWORK 2
+
+I realize that we covered a lot this week. We will go over most of
+these concepts again. Meanwhile, if you have any questions about
+anything we covered this week, feel free to send me an email and
+I will do my best to answer them.
+
+Following are notes about the topics we covered, followed by your
+homework assignment for next Wednesday.
+
+Also you will find two files attached. One is the five spheres
+code example, and the other is the code example of a single sphere
+tracking the cursor position.
+
+Dot product:
+
+        The dot product A•B between two vectors [Ax,Ay,Az] and [Bx,By,Bz] is given by:
+
+                Ax * Bx + Ay * By + Az * Bz
+
+        This dot product can also be expressed as:
+
+                |A| * |B| * cos(theta)
+
+        where |A| is the length of A and theta is the angle between A and B.
+
+Ray tracing to a sphere:
+
+        Given a sphere equation and a ray equation:
+
+                A point on this sphere:  (x-Cx)^2 + (y-Cy)^2 + (z-Cz)^2 - r^2 = 0
+
+            and
+
+                A point along this ray:  V + t W , where t > 0 and |W| = 1
+
+        First we will change coordinates to make our work simpler:
+
+                V' = V - C
+
+        Then insert the values of the second equation into the first equation:
+
+                (Vx'+tWx)^2 + (Vy'+tWy)^2 + (Vz'+tWz)^2 - r^2 = 0
+
+        Rearrange terms:
+
+                t^2 (Wx^2 + Wy^2 + Wz^2) +
+                2 t (V'x Wx + V'y Wy + V'z Wz) +
+                    (V'x^2 + V'y^2 + V'z^2 - r^2) = 0
+        
+        Solve the quadratic equation in t, making use of dot products:
+
+                To find t, we solve the quadratic equation:
+
+                        A t^2 + (B/2) t + C = 0
+
+                By the formula:
+
+                        t = -(B/2) - sqrt((B/2)^2 - (C - r^2))
+
+                In our case:   A   = 1
+                             (B/2) = V'•W
+                               C   = V'•V' - r^2
+
+                (1) Find discriminant d:
+
+                        d = (V'•W)^2 - (V'•V' - r^2)
+
+                (2) if d > 0 then
+                        t = -(V'•W) - sqrt(d)
+                    else
+                        t = -1
+
+        From t, we can get the point on the sphere P and also the surface normal N:
+
+                P = V + t W
+                N = normalize(P - C)
+
+Passing info about multiple spheres from the CPU to the GPU:
+
+        The GPU needs to see the number of spheres as a constant.
+        So we use string substitution to insert constant NSPHERES into the shader code.
+        At every animation frame, we pass a flat array of x,y,z,r values into uSphere.
+
+Ray tracing to multiple objects, showing only the nearest one:
+
+        We need to keep track of tMin, starting with tMin = 1000.
+        Loop through all spheres:
+                Only consider spheres for which t is greater than 0 and less than tMin.
+                In those cases, set tMin = t
+
+Casting shadows:
+
+        Loop through all other spheres sphere[j]:
+                If a ray from point P into light direction L hits sphere[j]
+                        then point P is in shadow.
+
+        If in shadow, then
+                Only render the ambient component, not the diffuse or specular components.
+
+Diffuse shading:
+
+        A diffuse surface scatters light equally in all directions.
+
+        As the normal direction N points away from the light direction L:
+                attenuate by the cosine between N and L.
+
+        In practice, we compute this by:
+
+                max(0, N•L)
+
+Accessing the mouse cursor:
+
+        I've made the cursor's position and up/down state available in the fragment shader:
+
+                vec3 uCursor = [ xPosition , yPosition , z = 1 if down and 0 if up ]
+
+        You can use uCursor to make your scene respond to the user's mouse movements.
+
+Matrices:
+
+        A 4x4 matrix consists of 16 numbers in a 4x4 grid:
+
+                M00 M10 M20 M30
+                M01 M11 M21 M31
+                M02 M12 M22 M32
+                M03 M13 M23 M33
+
+        On the GPU this is represented in "column major" order as a 1D array of 16 numbers:
+
+                [ M00 M01 M02 M03  M10 M11 M12 M13  M20 M21 M22 M23  M30 M31 M32 M33 ]
+
+        Homogeneous coordinates: Representing position vectors and direction vectors
+
+                Position column vector:  x     Direction column vector: x
+                                         y                              y
+                                         z                              z
+                                         1                              0
+
+        We can also use the transpose "T" symbol to indicate a column vector:
+
+                                x
+                           T    y
+                [ x y z w ]  =  z
+                                w
+
+        To use matrix M to transform column vector V
+
+                                        T
+                V' = M • [ Vx Vy Vz Vz ]
+
+        you need to perform 4 dot products:
+                                                           T
+                V'x = [ M00 M10 M20 M30 ] • [ Vx Vy Vz Vw ]
+                                                           T
+                V'y = [ M01 M11 M21 M31 ] • [ Vx Vy Vz Vw ]
+                                                           T
+                V'z = [ M02 M12 M22 M32 ] • [ Vx Vy Vz Vw ]
+                                                           T
+                V'w - [ M03 M13 M23 M33 ] • [ Vx Vy Vz Vw ]
+
+
+        Here are a set of "primitive" matrices. You can multiply
+        these together in various ways to get any other matrix:
+
+
+        Identity matrix:
+
+                 1  0  0  0
+                 0  1  0  0
+                 0  0  1  0
+                 0  0  0  1
+
+        Translation matrix:
+
+                 1  0  0  tx
+                 0  1  0  ty
+                 0  0  1  tz
+                 0  0  0  1
+
+        Scale matrix:
+
+                 sx 0  0  0
+                 0  sy 0  0
+                 0  0  sz 0
+                 0  0  0  1
+
+        Rotation matrices about the x,y,z axes, where c = cos(theta) and s = sin(theta):
+
+                 1  0  0  0
+                 0  c -s  0          Rotation about x
+                 0  s  c  0
+                 0  0  0  1
+
+                 c  0  s  0
+                 0  1  0  0          Rotation about y
+                -s  0  c  0
+                 0  0  0  1
+
+                 c -s  0  0
+                 s  c  0  0          Rotation about z
+                 0  0  1  0
+                 0  0  0  1
+
+        Perspective matrix:
+
+                 1  0  0  0
+                 0  1  0  0
+                 0  0  1  0
+                 px py pz 1
+
+        Multiplying two matrices
+
+                C00 C10 C20 C30       A00 A10 A20 A30      B00 B10 B20 B30
+                C01 C11 C21 C31  /--  A01 A11 A21 A31  \/  B01 B11 B21 B31
+                C02 C12 C22 C32  \--  A02 A12 A22 A32  /\  B02 B12 B22 B32
+                C03 C13 C23 C33       A03 A13 A23 A33      B03 B13 B23 B33
+
+                For every column i and row j:
+
+                        Cij = [ A0j A1j A2j A3j ] • [ Bi0 Bi1 Bi1 Bi2 ]
+
+Phong shading with specular highlights:
+
+        Ambient + Diffuse + Specular
+
+                Ambient is independent of light sources
+                Diffuse is added for each light source
+                Specular is added for each light source
+
+        For specular highlights we need R, the reflection of the direction toward the user:
+
+                We can compute the reflection any vector V around the surface normal N by:
+
+                        2 N (N•V) - V
+
+                In our case, we want to reflect -W, since that aims back toward the user:
+
+                        R = W - 2 N (N•W)
+
+        We can then use R to compute the highlight intensity:
+
+                The more closely that R is aligned with light direction L, the brighter
+                will be the highlight. We raise the highlight to a power p to make it
+                smaller and shiner:
+
+                        pow( max(0, R•L), p )
+
+        Different materials (with examples):
+
+                In general, for metal the specular highlight and
+                the diffuse shading have the same color.
+
+                Plastic always has a white specular highlight.
+
+                In the attached five_spheres example, I've added
+                some examples of materials. When you move your
+                cursor to the left, the spheres appear to be gold.
+                When you move your cursor to the right, the spheres
+                appear to be copper. When your cursor is in the
+                middle, the spheres appear to be red plastic.
+
+                For your homework, you might try creating your
+                own materials. For example, with the right color
+                and some noise-based procedural textures, you
+                should be able to simulate the appearance of wood.
+
+Homework due next week before class:
+
+        I would like you to use what you have learned so far to
+        create your own ray traced scene. See if you can be creative.
+
+        Here are some suggestions for things you might try:
+
+                Multiple lights:
+
+                        Different light colors
+                        Different light directions
+
+                Give each sphere a different color and material.
+
+                Try creating a physics simulation in Javascript:
+
+                        Add gravity
+                        Add a floor
+                        Bounce spheres off one another
+
+                Use noise-based procedural textures to create your own materials.
+
+        Feel free to come up with your own ideas!
+
