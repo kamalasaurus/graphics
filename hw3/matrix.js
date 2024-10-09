@@ -8,13 +8,15 @@ export default class Matrix {
     // I want the constructor to take an array of arrays because I go cross-eyed when it's all mashed together
     constructor(value = [[1,0,0,0], [0,1,0,0], [0,0,1,0], [0,0,0,1]], isString = false) {
         const types = value.flat(Infinity).map(v => typeof v)
-    
-        if (!isString && types.every(t => t === 'number')) this.is = 'number'
-        else throw new Error('all Matrix elements must be numeric')
-
-        if (isString && types.every(t => t === 'string')) this.is = 'string'
-        else throw new Error('all Matrix elements must be string')
-
+   
+        if (isString) {
+            if (types.every(t => t === 'string')) this.is = 'string'
+            else throw new Error('all Matrix elements must be string')
+        } else {
+            if (types.every(t => t === 'number')) this.is = 'number'
+            else throw new Error('all Matrix elements must be numeric')
+        }
+        
         this.value = value // I'm using the schmancy setter
     }
 
@@ -36,15 +38,22 @@ export default class Matrix {
 
     // I guess this method is to explicitly mutate, not to return a new instance
     set value(value) {
-        if (value.flat(Infinity).any(v => this.is !== typeof v))
+        if (value.flat(Infinity).some(v => this.is !== typeof v))
             throw new Error(`all Matrix elements must be ${this.is}`)
         // this falls apart with outer and inner products ... I need to check for that
-        if (value.every(row => row.length === value[0].length)) {
+        // this is a sus constructor
+        // TODO: if assigning a matrix, just set the values directly
+        // TODO: if a single value, make a 1x1 matrix?
+        // TODO: if a list of arrays, make a matrix?
+        if (value.length === value.flat(Infinity).length) {
+            this.#value = [value]
+            this.#rows = value.length
+            this.#cols = 1
+        } else if (value.every(row => row.length === value[0].length)) {
             this.#value = value
             this.#rows = value[0].length
             this.#cols = value.length
         } else throw new Error('all nested lists must be the same length')
-        return this
     }
 
     // alias for API completion
@@ -64,7 +73,6 @@ export default class Matrix {
 
     set is(type) {
         this.#type = type
-        return this
     }
 
     // printing is important 😤
@@ -74,11 +82,11 @@ export default class Matrix {
         const values = this.#value.map(cols => cols.map(v => v.toFixed(2)))
         const max_length = Math.max(...values.flat(Infinity).map(v => v.length))
         const padded = values.map(cols => cols.map(v => v.padStart(max_length, ' ')))
-        return new Matrix(padded, true).transpose().map(row => row.join('\t')).join('\n')
+        return new Matrix(padded, true).transpose().value.map(row => row.join('\t')).join('\n')
     }
 
     // dimensions for fun
-    dims() {
+    get dims() {
         return [this.#rows, this.#cols]
     }
 
@@ -89,7 +97,7 @@ export default class Matrix {
     }
 
     // column major format has columns first, honestly it's making me dizzy
-    get_postion(i = 0, j = 0) {
+    get_position(i = 0, j = 0) {
         if (![i, j].every(v => typeof v === 'number'))
             throw new Error('Matrix position i, j must be numeric')
         return this.#value[i][j]
@@ -106,7 +114,8 @@ export default class Matrix {
 
     // should this mutate or return a new instance generally?
     transpose() {
-        const [rows, cols] = this.dims()
+        const [rows, cols] = this.dims
+        // this changes the original value -- not sure if I should do that
         this.value = Array.from({length: rows}, (_, i) => { //rows
             return Array.from({length: cols}, (_, j) => { //columns
                 return this.get_position(j, i)
@@ -131,6 +140,10 @@ export default class Matrix {
         return this
     }
     
+    #degrees_to_radians(degrees) {
+        return degrees * (Math.PI / 180)
+    }
+
     // 1       0       0  0
     // 0  cos(Θ) -sin(Θ)  0
     // 0  sin(Θ)  cos(Θ)  0
@@ -138,6 +151,7 @@ export default class Matrix {
     rotateX(theta){
         if (typeof theta !== 'number')
             throw new Error('Matrix rotation theta must be numeric')
+        theta = this.#degrees_to_radians(theta)
         let rotated = Matrix.identity()
             .set_position(1,1,Math.cos(theta))
             .set_position(1,2,Math.sin(theta))
@@ -155,6 +169,7 @@ export default class Matrix {
     rotateY(theta) {
         if (typeof theta !== 'number')
             throw new Error('Matrix rotation theta must be numeric')
+        theta = this.#degrees_to_radians(theta)
         let rotated = Matrix.identity()
             .set_position(0,0,Math.cos(theta))
             .set_position(0,2,-Math.sin(theta))
@@ -172,6 +187,7 @@ export default class Matrix {
     rotateZ(theta) {
         if (typeof theta !== 'number')
             throw new Error('Matrix rotation theta must be numeric')
+        theta = this.#degrees_to_radians(theta)
         let rotated = Matrix.identity()
             .set_position(0,0,Math.cos(theta))
             .set_position(0,1,Math.sin(theta))
@@ -221,9 +237,10 @@ export default class Matrix {
     transform(vector) {
         if (!vector instanceof Array)
             throw new Error('Matrix transform vector must be an array')
-        if (vector.length !== this.#rows)
+        if (vector.length !== this.#cols)
             throw new Error('Matrix transform vector must match the number of rows')
         this.value = this.multiply(Matrix.new(vector)).value
+        return this
     }
 
     // I'm adding some convenience methods to initialize my transforms
@@ -267,7 +284,7 @@ export default class Matrix {
         if (![matrix_a, matrix_b].every(m => m.is === 'number'))
             throw new Error('Matrix A and B must both be numeric for multiplication')
 
-        const [a_rows, a_cols, b_rows, b_cols] = [].concat(matrix_a.dims(), matrix_b.dims())
+        const [a_rows, a_cols, b_rows, b_cols] = [].concat(matrix_a.dims, matrix_b.dims)
         if (a_cols !== b_rows)
             throw new Error('Matrix A columns must match Matrix B rows for multiplication')
 
@@ -277,10 +294,27 @@ export default class Matrix {
         matrix_a.transpose().forEach((a_row, i) => {
             matrix_b.forEach((b_col, j) => {
                 const val = a_row.reduce((sum, a, k) => sum + (a * b_col[k]), 0)
-                product.set_position(i, j, val)
+                product.set_position(j, i, val)
             })
         })
 
-        return product.transpose()
+        return product
+    }
+
+    static new(value) {
+        return new Matrix(value)
+    }
+
+    // I should have just exteneded Array...
+    forEach(...x) {
+        return this.value.forEach(...x)
+    }
+
+    reduce(...x) {
+        return this.value.reduce(...x)
+    }
+
+    map(...x) {
+        return this.value.map(...x)
     }
 }
