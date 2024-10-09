@@ -210,3 +210,67 @@
 
    }
 
+<pre id="target">
+
+</pre>
+
+<script type="module">
+    import Matrix from './matrix.js'
+    window.Matrix = Matrix
+
+    const target = document.getElementById('target')
+
+    const v = [1,2,3,1]
+
+    const mat_a = Matrix.new([[1,2],[1,1]])
+    const mat_b = Matrix.new([[1,1],[1,1]])
+
+    const contents = `
+Identity
+${Matrix.identity().toString()}
+
+Translate
+${Matrix.new().translate(1,2,3).toString()}
+
+RotateX
+${Matrix.new().rotateX(90).toString()}
+
+RotateY
+${Matrix.new().rotateY(90).toString()}
+
+RotateZ
+${Matrix.new().rotateZ(90).toString()}
+
+Scale
+${Matrix.new().scale(2,3,4).toString()}
+
+Perspective
+${Matrix.new().perspective(1,2,3).toString()}
+
+Transform
+I
+${Matrix.new().toString()}
+V
+${Matrix.new(v).toString()}
+A • V
+${Matrix.new().transform([1,2,3,1]).toString()}
+
+** ^ the toString method is wrong here -- it should be printing it out as a column.
+** There is a logic bug about how I transpose the matrix in the toString method to
+** join with tabs before new lines because it can produce infinitely deep matrices
+** if I keep calling transpose.  So it's not idempotent bidirectional.  Is transpose
+** exclusively in 2 dimensions?  If so, I can make the class more restrictive vs trying
+** to be generic enough to support n dimensions.
+
+Multiply
+A
+${mat_a.toString()}
+
+B
+${mat_b.toString()}
+
+A x B
+${Matrix.multiply(mat_a, mat_b).toString()}
+    `
+    target.innerHTML = contents;
+</script>
