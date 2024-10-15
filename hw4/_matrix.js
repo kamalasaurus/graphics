@@ -1,47 +1,33 @@
-export default class Matrix extends Array {
+export default class Matrix {
+    // in retrospect, I should have just extended Array
+    // I will try to make progress on that in a parallel class,
+    // but this one should cover the requirements for hw3
+    // the major difference is that it expects an array of array
+    // instead of a single flat array.  
     // private -- this is some wild new syntax from ES2022
     #value
     #rows
     #cols
-    #flat
     #type // this is stupid but whatever -- I can use it to check for safety for arithmetic operations -- I'm only using strings to print though
 
     // I want the constructor to take an array of arrays because I go cross-eyed when it's all mashed together
-    constructor(value = [[1,0,0,0], [0,1,0,0], [0,0,1,0], [0,0,0,1]]) {
-        super(...value)
-        this.flat = value
-        this.is = this.#all(this.#flat, 'number') ?
-            'number' :
-            this.#all(this.#flat, 'string') ?
-                'string' :
-                null;
-
-        // Is this even necessary since I'm extending Array here -- I'll think about the refactor
-        // there's a lot of space to streamline this class -- depending on Array gives it a bigger
-        // footprint, but it's not like Javascript objects are very efficient anyway.
+    constructor(value = [[1,0,0,0], [0,1,0,0], [0,0,1,0], [0,0,0,1]], isString = false) {
+        const types = value.flat(Infinity).map(v => typeof v)
+   
+        if (isString) {
+            if (types.every(t => t === 'string')) this.is = 'string'
+            else throw new Error('all Matrix elements must be string')
+        } else {
+            if (types.every(t => t === 'number')) this.is = 'number'
+            else throw new Error('all Matrix elements must be numeric')
+        }
+        
         this.value = value // I'm using the schmancy setter
     }
 
-
-    ////////////////////////////
-    // PRIVATE METHODS
-    ////////////////////////////
-
-    #all(value, type) {
-        return value.every(v => typeof v === type)
+    static new(value) {
+        return new Matrix(value)
     }
-
-    #any(value, type) {
-        return value.some(v => typeof v === type)
-    }
-    
-    #degrees_to_radians(degrees) {
-        return degrees * (Math.PI / 180)
-    }
-
-    ////////////////////////////
-    // INSTANCE METHODS
-    ////////////////////////////
 
     // this is invaluable for chaining cause monads are cool
     // this might be too smart though ... should I have an explicit clone method?
@@ -49,23 +35,10 @@ export default class Matrix extends Array {
         return value ? new Matrix(value) : new Matrix(this.value)
     }
 
-    get flat() {
-        return this.#flat
-    }
-
     // this is a goofy API but I didn't design JS ¯\_(ツ)_/¯
     // unclear why I would make this method N-dimensional ...
-    set flat(value) {
-        this.#flat = value.flat(Infinity)
-    }
-
-    get is() {
-        return this.#type
-    }
-
-    set is(type) {
-        if (type === null) throw new Error('all Matrix elements must be string or number')
-        this.#type = type
+    get flat() {
+        return this.value.flat(Infinity)
     }
 
     get value() {
@@ -82,7 +55,7 @@ export default class Matrix extends Array {
         // TODO: if a single value, make a 1x1 matrix?
         // TODO: if a list of arrays, make a matrix?
         if (value.length === value.flat(Infinity).length) {
-            this.#value = [value]
+            this.#value = [value] // this needs to be smarter
             this.#rows = value.length
             this.#cols = 1
         } else if (value.every(row => row.length === value[0].length)) {
@@ -99,9 +72,16 @@ export default class Matrix extends Array {
 
     // alias for API completion
     set(value) {
-        // this = new Matrix(value)
         this.value = value
         return this
+    }
+
+    get is() {
+        return this.#type
+    }
+
+    set is(type) {
+        this.#type = type
     }
 
     // printing is important 😤
@@ -111,7 +91,7 @@ export default class Matrix extends Array {
         const values = this.#value.map(cols => cols.map(v => v.toFixed(2)))
         const max_length = Math.max(...values.flat(Infinity).map(v => v.length))
         const padded = values.map(cols => cols.map(v => v.padStart(max_length, ' ')))
-        return new Matrix(padded).transpose().value.map(row => row.join('\t')).join('\n')
+        return new Matrix(padded, true).transpose().value.map(row => row.join('\t')).join('\n')
     }
 
     // dimensions for fun
@@ -167,6 +147,10 @@ export default class Matrix extends Array {
 
         this.value = this.multiply(translated).value
         return this
+    }
+    
+    #degrees_to_radians(degrees) {
+        return degrees * (Math.PI / 180)
     }
 
     // 1       0       0  0
@@ -268,10 +252,6 @@ export default class Matrix extends Array {
         return this
     }
 
-    ////////////////////////////
-    // CLASS METHODS
-    ////////////////////////////
-
     // I'm adding some convenience methods to initialize my transforms
 
     // 0  0  0  0
@@ -330,7 +310,16 @@ export default class Matrix extends Array {
         return product
     }
 
-    static new(value) {
-        return new Matrix(value)
+    // I should have just exteneded Array...
+    forEach(...x) {
+        return this.value.forEach(...x)
+    }
+
+    reduce(...x) {
+        return this.value.reduce(...x)
+    }
+
+    map(...x) {
+        return this.value.map(...x)
     }
 }

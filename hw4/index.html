@@ -1,1 +1,62 @@
-<!DOCTYPE html><html><head><title>Page Title</title></head><body><p>hello</p></body></html>
+<pre id="content"></pre>
+
+<!-- <script import src=fragmentShader.js type="module"></script> -->
+<script import src=matrix.js type="module"></script>
+<script import src=quadric.js type="module"></script>
+
+<script type="module">
+    import { 
+        translation,
+        rotationX,
+        rotationY,
+        rotationZ,
+        scale,
+        multiply,
+        transpose,
+        value,
+        toString
+    } from './matrix.js';
+    import { 
+        sphere,
+        xParaboloid,
+        yParaboloid,
+        zParaboloid,
+        xSlab,
+        ySlab,
+        zSlab,
+        xCylinder,
+        yCylinder,
+        zCylinder,
+        everywhere
+    } from './quadric.js';
+
+    let identity = [
+        [1,0,0,0],
+        [0,1,0,0],
+        [0,0,1,0],
+        [0,0,0,1]
+    ];
+
+    let a = [
+        [5,0,0,0],
+        [0,4,0,0],
+        [0,0,3,0],
+        [0,0,0,2]
+    ];
+
+    let a2 = [
+        [5,0,0,0],
+        [0,4,0,0],
+        [0,0,3,0],
+        [0,0,0,2]
+    ];
+
+    let b = multiply(multiply(identity, a), a2)
+
+    // the 2 string back to row-major format for printing
+    let c = transpose(b).map((e) => e.join('\t')).join('\n');
+
+    let d = multiply(translation(1,1,1), sphere)
+
+    content.textContent = toString(d);
+</script>
