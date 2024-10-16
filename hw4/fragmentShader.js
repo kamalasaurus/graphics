@@ -169,12 +169,63 @@ void main() {
             vec3 d = material * max(dot(N,L2), max(0., dot(N,L1)));
             vec3 R = W - 2. * N * dot(N, W);
             vec3 s = highlight * pow(max(0., dot(R, L1)), power);
-            
-            color = d + s;
+
+            // this feels very recursive but it doesn't seem like we can recurse in GLSL
+            vec3 reflectedColor = vec3(0.0);
+
+            float tMinReflected = 1000.0;
+            float tMaxReflected = -1000.0;
+
+            mat4 QReflected = mat4(0.0);
+            vec3 materialReflected = vec3(0.0);
+            vec3 highlightReflected = vec3(0.0);
+            float powerReflected = 0.0;
+
+            int isPlaneReflected = 0;
+
+            for (int idxR = 0; idxR < ${NQ}; idxR++) {
+                float tInReflected = -1000.0;
+                float tOutReflected = 1000.0;
+
+                for (int j = 0; j < 3; j++) {
+                    mat4 currentQ = (j == 0) ? uA[idxR] : ((j == 1) ? uB[idxR] : uC[idxR]);
+                    vec2 ts = intersectQuadric(currentQ, V, W);
+
+                    // Update tIn and tOut
+                    tInReflected = max(tInReflected, ts.x);
+                    tOutReflected = min(tOutReflected, ts.y);
+                }
+
+                if (tInReflected < tOutReflected && tInReflected > 0.0) {
+                    if (tInReflected < tMinReflected) {
+                        tMinReflected = tInReflected;
+                        QReflected = (tInReflected == intersectQuadric(uA[idxR], P, R).x) ? uA[idxR] :
+                            (tInReflected == intersectQuadric(uB[idxR], P, R).x) ? uB[idx] : uC[idxR];
+
+                        isPlaneReflected = idxR;
+                        materialReflected = uMaterials[idxR];
+                        highlightReflected = uHighlights[idxR];
+                        powerReflected = uPowers[idxR];
+                    }
+                    tMaxReflected = max(tMaxReflected, tOutReflected);
+
+                    vec3 PReflected = P + tMinReflected * R;
+
+                    vec3 NReflected = normalize(vec3(2.0 * QReflected[0][0] * PReflected.x + QReflected[2][0] * PReflected.z + QReflected[0][1] * PReflected.y + QReflected[0][2],
+                                                    2.0 * QReflected[1][1] * PReflected.y + QReflected[1][2] * PReflected.z + QReflected[0][1] * PReflected.x + QReflected[1][0],
+                                                    2.0 * QReflected[2][2] * PReflected.z + QReflected[1][2] * PReflected.y + QReflected[2][0] * PReflected.x + QReflected[2][1]));
+
+                    vec3 dReflected = material * max(dot(NReflected, L2), max(0.0, dot(NReflected, L1)));
+                    reflectedColor += dReflected;
+                }
+            }
+
+
+            // color = d + s;
+            color = d + s + 0.5 * reflectedColor;
             if (isPlane == 5) {
                 color = cloudify2(vec3(0.9, 0.7, 1.0), P.xyz);
             }
-            // color = d + s + 0.5 * reflectedColor;
             // color *= marble(P.yxz);
         }
     }
