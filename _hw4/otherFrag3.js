@@ -81,7 +81,7 @@ void main() {
     y += turbulence(.5 * vPos + vec3(.03*uTime,0.,.03*uTime));
     bgColor = mix(bgColor, (vec3(.5) * bgColor), y<0.?0.:y>.1?1.:y/.1);
     bgColor = mix(bgColor, vec3(1.7), y<.1?0.:y-.1);
-
+    
     vec3 color = bgColor;
     vec3 V = vec3(0., 0., 0.);  // Ray origin
     vec3 W = normalize(vec3(vPos.xy,-uFL));  // Ray Direction
@@ -140,13 +140,59 @@ void main() {
                             2.*b*P.y + d*P.z + f*P.x + h,
                             2.*c*P.z + d*P.y + e*P.x + i ) );
 
+
             // vec3 R = reflect(-L1, N);
 
             vec3 d = material * max(dot(N,L2), max(0., dot(N,L1)));
-            vec3 R = W - 2. * N * dot(N, W);
+            // vec3 R = W - 2. * N * dot(N, W);
+            vec3 R = reflect(-W, N);
             vec3 s = highlight * pow(max(0., dot(R, L1)), power);
-            color += d + s;
-            color *= marble(P.yxz);
+            
+            
+            // this feels very recursive but it doesn't seem like we can recurse in GLSL
+            vec3 reflectedColor = vec3(0.0);
+            float tMinReflected = 1000.0;
+            for (int idx = 0; idx < ${NQ}; idx++) {
+                float tInReflected = -1000.0;
+                float tOutReflected = 1000.0;
+
+                for (int j = 0; j < 3; j++) {
+                    vec2 tQuadric;
+                    if (j == 0) {
+                        tQuadric = intersectQuadric(uA[idx], P, R);
+                    } else if (j == 1) {
+                        tQuadric = intersectQuadric(uB[idx], P, R);
+                    } else {
+                        tQuadric = intersectQuadric(uC[idx], P, R);
+                    }
+
+                    if (tQuadric.x > 0.0) {
+                        tInReflected = max(tInReflected, tQuadric.x);
+                    }
+                    if (tQuadric.y > 0.0) {
+                        tOutReflected = min(tOutReflected, tQuadric.y);
+                    }
+                }
+
+                if (tInReflected < tOutReflected && tInReflected < tMinReflected) {
+                    tMinReflected = tInReflected;
+                    vec3 PReflected = P + tMinReflected * R;
+
+                    vec3 NReflected = normalize(vec3(2.0 * Q[0][0] * PReflected.x + Q[2][0] * PReflected.z + Q[0][1] * PReflected.y + Q[0][2],
+                                                    2.0 * Q[1][1] * PReflected.y + Q[1][2] * PReflected.z + Q[0][1] * PReflected.x + Q[1][0],
+                                                    2.0 * Q[2][2] * PReflected.z + Q[1][2] * PReflected.y + Q[2][0] * PReflected.x + Q[2][1]));
+
+                    vec3 dReflected = material * max(dot(NReflected, L2), max(0.0, dot(NReflected, L1)));
+                    reflectedColor += dReflected;
+                }
+            }
+            
+
+
+
+            // color += d + s;
+            color = d + s + 0.5 * reflectedColor;  // Combine the direct and reflected color
+            // color *= marble(P.yxz);
         }
     }
 
