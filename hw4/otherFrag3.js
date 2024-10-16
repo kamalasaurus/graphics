@@ -1,6 +1,6 @@
 export default function _fragmentShader(NQ) {
     return `
-precision mediump float;
+precision highp float;
 
 uniform float uTime, uFL;
 uniform vec3 uCursor;
@@ -8,9 +8,33 @@ uniform vec3 uL[2];
 uniform mat4 uA[${NQ}], uB[${NQ}], uC[${NQ}];
 varying vec3 vPos;
 
-uniform vec3 uMaterials[4]; // Array of material colors
-uniform vec3 uHighlights[4]; // Array of highlight colors
-uniform float uPowers[4]; // Array of power values
+uniform vec3 uMaterials[${NQ}]; // Array of material colors
+uniform vec3 uHighlights[${NQ}]; // Array of highlight colors
+uniform float uPowers[${NQ}]; // Array of power values
+
+float noise(vec3 point) { float r = 0.; for (int i=0;i<16;i++) {
+    vec3 D, p = point + mod(vec3(i,i/4,i/8) , vec3(4.0,2.0,2.0)) +
+        1.7*sin(vec3(i,5*i,8*i)), C=floor(p), P=p-C-.5, A=abs(P);
+    C += mod(C.x+C.y+C.z,2.) * step(max(A.yzx,A.zxy),A) * sign(P);
+    D=34.*sin(987.*float(i)+876.*C+76.*C.yzx+765.*C.zxy);P=p-C-.5;
+    r+=sin(6.3*dot(P,fract(D)-.5))*pow(max(0.,1.-2.*dot(P,P)),4.);
+} return .5 * sin(r); }
+
+float turbulence(vec3 P) {
+    float f = 0., s = 1.;
+    for (int i = 0 ; i < 9 ; i++) {
+        f += abs(noise(s * P)) / s;
+        s *= 2.;
+        P = vec3(.866*P.x + .5*P.z, P.y + 100., -.5*P.x + .866*P.z);
+    }
+    return f;
+}        
+
+vec3 marble(vec3 pos) {
+    float v = turbulence(pos);
+    float s = sqrt(.5 + .5 * sin(20. * pos.y + 8. * v));
+    return vec3(.8,.7,.5) * vec3(s,s*s,s*s*s);
+}
 
 vec2 solveQuadratic(float a, float b, float c) {
     float discriminant = b * b - 4.0 * a * c;
@@ -51,7 +75,12 @@ vec2 intersectQuadric(mat4 quadric, vec3 rayOrigin, vec3 rayDir) {
 }
 
 void main() {
-    vec3 bgColor = vec3(0.2, 0.8, 0.75);
+    vec3 bgColor = vec3(0.3, 0.1, 0.3);
+
+    float y = .1 * vPos.y - .3;
+    y += turbulence(.5 * vPos + vec3(.03*uTime,0.,.03*uTime));
+    bgColor = mix(bgColor, (vec3(.5) * bgColor), y<0.?0.:y>.1?1.:y/.1);
+    bgColor = mix(bgColor, vec3(1.7), y<.1?0.:y-.1);
 
     vec3 color = bgColor;
     vec3 V = vec3(0., 0., 0.);  // Ray origin
@@ -59,14 +88,13 @@ void main() {
     vec3 L1 = normalize(uL[0]);  // Light direction
     vec3 L2 = normalize(uL[1]); // Light direction
 
-    vec3 material = uMaterials[0];
-    vec3 highlight = uHighlights[0];
-    float power = uPowers[0];
-
     float tMin = 1000.;
     float tMax = -1000.;
 
     mat4 Q = mat4(0.0);
+    vec3 material = vec3(0.0);
+    vec3 highlight = vec3(0.0);
+    float power = 0.0;
 
     for (int idx = 0; idx < ${NQ}; idx++) {
         float tIn = -1000.0;
@@ -86,6 +114,10 @@ void main() {
                 tMin = tIn;
                 Q = (tIn == intersectQuadric(uA[idx], V, W).x) ? uA[idx] :
                     (tIn == intersectQuadric(uB[idx], V, W).x) ? uB[idx] : uC[idx];
+
+                material = uMaterials[idx];
+                highlight = uHighlights[idx];
+                power = uPowers[idx];
             }
             tMax = max(tMax, tOut);
         }
@@ -108,11 +140,13 @@ void main() {
                             2.*b*P.y + d*P.z + f*P.x + h,
                             2.*c*P.z + d*P.y + e*P.x + i ) );
 
-            vec3 R = reflect(-L1, N);
+            // vec3 R = reflect(-L1, N);
 
-            color = .2 * material;
-            float diffuse = max(dot(N, L2), max(dot(N, L1), 0.0));
-            color += vec3(.1 + diffuse);
+            vec3 d = material * max(dot(N,L2), max(0., dot(N,L1)));
+            vec3 R = W - 2. * N * dot(N, W);
+            vec3 s = highlight * pow(max(0., dot(R, L1)), power);
+            color += d + s;
+            color *= marble(P.yxz);
         }
     }
 
