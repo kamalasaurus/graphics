@@ -22,7 +22,8 @@ const NSPHERES = 4;
       multiply,
       transpose,
       value,
-      toString
+      toString,
+      identity
    } from './matrix.js';
    import { 
       sphere,
@@ -189,7 +190,7 @@ setTimeout(() => {
       gl.uniform4fv(uSpheres, data);
 
 
-      
+
       // DEFINE ANIMATION MATRICES
 
       let s1 = Math.sin(time);

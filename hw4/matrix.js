@@ -70,6 +70,15 @@ export const toString = (m) => {
     return transpose(m).map(row => row.join('\t')).join('\n')
 }
 
+export const identity = () => {
+    return transpose([
+        [1, 0, 0, 0],
+        [0, 1, 0, 0],
+        [0, 0, 1, 0],
+        [0, 0, 0, 1]
+    ])
+}
+
 const Matrix = {
     translation,
     rotationX,
@@ -79,7 +88,8 @@ const Matrix = {
     multiply,
     transpose,
     value,
-    toString
+    toString,
+    identity
 }
 
 export default Matrix
