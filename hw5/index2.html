@@ -1,5 +1,9 @@
-<body bgcolor=black>
-<center><canvas id='canvas1' width=800 height=800></canvas>
+<body bgcolor=black style="
+width: 100%;
+height: 100%;
+margin: 0;
+padding: 0;">
+<center><canvas id='canvas1' style="position: absolute; width: 100%; height: 100%; display: block;"></canvas>
 
 <script>
 
@@ -37,6 +41,17 @@ let mTranslate = (x,y,z, m) => matrixMultiply(m, [1,0,0,0, 0,1,0,0, 0,0,1,0, x,y
 
 let start_gl = (canvas, meshData, vertexSize, vertexShader, fragmentShader) => {
    let gl = canvas.getContext("webgl");
+
+   function resizeCanvas() {
+      const devicePixelRatio = window.devicePixelRatio || 1;
+      canvas.width = window.innerWidth * devicePixelRatio;
+      canvas.height = window.innerHeight * devicePixelRatio;
+      gl.viewport(0, 0, canvas.width, canvas.height);
+   }
+
+   window.addEventListener('resize', resizeCanvas);
+   resizeCanvas();
+
    let program = gl.createProgram();
    gl.program = program;
    let addshader = (type, src) => {
@@ -217,8 +232,9 @@ let meshData = [
    { type: 1, color: [1.,1.,1.], mesh: new Float32Array(torus   (50, 50)) },
    // { type: 0, color: [.1,1.,1.], mesh: new Float32Array(cube) },
    // { type: 0, color: [1.,1.,1.], mesh: new Float32Array(octahedron) },
-   // { type: 0, color: [.5,.5,1.], mesh: new Float32Array(icosahedron) },
-   // { type: 0, color: [1.,.5,.5], mesh: new Float32Array(tetrahedron) }
+   { type: 0, color: [.5,.5,1.], mesh: new Float32Array(icosahedron) },
+   { type: 0, color: [1.,.5,.5], mesh: new Float32Array(tetrahedron) },
+   { type: 0, color: [1.,.5,.5], mesh: new Float32Array(tetrahedron) }
 ];
 
 // VERY SIMPLE VERTEX AND FRAGMENT SHADERS
@@ -240,10 +256,46 @@ let vertexShader = `
 let fragmentShader = `
    precision mediump float;
    uniform vec3 uColor;
+   uniform float uTime;
    varying vec3 vPos, vNor;
+
+   float noise(vec3 point) { float r = 0.; for (int i=0;i<16;i++) {
+      vec3 D, p = point + mod(vec3(i,i/4,i/8) , vec3(4.0,2.0,2.0)) +
+         1.7*sin(vec3(i,5*i,8*i)), C=floor(p), P=p-C-.5, A=abs(P);
+      C += mod(C.x+C.y+C.z,2.) * step(max(A.yzx,A.zxy),A) * sign(P);
+      D=34.*sin(987.*float(i)+876.*C+76.*C.yzx+765.*C.zxy);P=p-C-.5;
+      r+=sin(6.3*dot(P,fract(D)-.5))*pow(max(0.,1.-2.*dot(P,P)),4.);
+   } return .5 * sin(r); }
+
+   float turbulence2(vec3 P) {
+      float f = 0., s = 1.;
+      for (int i = 0 ; i < 6 ; i++) {
+         f += abs(noise(s * P)) / s;
+         s *= 2.;
+         P = vec3(.866*P.x + .5*P.z, P.y + 100., -.5*P.x + .866*P.z);
+      }
+      return f;
+   }   
+
+   vec3 cloudify2(vec3 color, vec3 pos) {
+      float y = .1 * pos.y + .25;
+      y += turbulence2(.1 * pos + vec3(0.,.3*uTime,0.));
+      color = mix(color, (vec3(.1) * color), y< 0. ? 0. : y>.1 ? 1. : y/.1);
+      color = mix(color, vec3(2), y< .1 ? 0. : y-.1);
+      return color;
+   }
+
    void main(void) {
-      float c = .15 + max(0., dot(normalize(vNor), vec3(0, 0, -1)));
-      gl_FragColor = vec4(sqrt(c * uColor), 1.);
+      //  I really impressed myself with this hack here
+      if (uColor == vec3(1.)) {
+         vec3 clouds = cloudify2(uColor, vPos);
+         float c = .15 + max(dot(normalize(vNor), vec3(0., 0., -1.)), 0.);
+         gl_FragColor = vec4(sqrt(c * clouds), 1.);
+         return;
+      } else {
+         float c = .05 + max(0., dot(normalize(vNor), vec3(.57)));
+         gl_FragColor = vec4(sqrt(c * uColor), 1.);
+      }
    }
 `;
 
@@ -254,13 +306,42 @@ let gl = start_gl(canvas1, meshData, vertexSize, vertexShader, fragmentShader);
 let uColor     = gl.getUniformLocation(gl.program, "uColor"    );
 let uInvMatrix = gl.getUniformLocation(gl.program, "uInvMatrix");
 let uMatrix    = gl.getUniformLocation(gl.program, "uMatrix"   );
+let uTime      = gl.getUniformLocation(gl.program, "uTime"    );
 
 // THE ANIMATION LOOP
 
 let startTime = Date.now() / 1000;
+
+// adapted from some old code I wrote to move a character around on a screen
+let keys = {};
+let keydown = e => keys[e.key] = true;
+let keyup = e => keys[e.key] = false;
+let getDirection = () => {
+   let x = 0, y = 0;
+   if (keys.ArrowUp) y = 1;
+   if (keys.ArrowDown) y = -1;
+   if (keys.ArrowLeft) x = -1;
+   if (keys.ArrowRight) x = 1;
+   // normalize the vector
+   if (x && y) {
+      x /= Math.sqrt(2);
+      y /= Math.sqrt(2);
+   }
+   return [x, y];
+}
+addEventListener('keydown', keydown);
+addEventListener('keyup', keyup);
+
+let position = [0, 0];
+
 function renderFrame() {
    requestAnimationFrame(renderFrame);
    let time = Date.now() / 1000 - startTime, m;
+
+   let [x, y] = getDirection().map(a => a * .05);
+   position[0] += x;
+   position[1] += y;
+   position = position.map(a => Math.min(1, Math.max(-1, a))) // clamp to the screen
 
    // LOOP THROUGH ALL OBJECTS
 
@@ -268,20 +349,51 @@ function renderFrame() {
 
       // SET OBJECT MATRIX FOR THIS ANIMATION FRAME
 
-      let c = .6 * C(2 * Math.PI * n / meshData.length);
-      let s = .6 * S(2 * Math.PI * n / meshData.length);
+      if (n == 0) {
+         m = mIdentity   ();
+         m = mPerspective(3, m);
+         m = mRotateX    (Math.PI/2, m);
+         m = mTranslate  (-4,-1,0, m);
+         m = mRotateZ    (time, m);
+         m = mScale      (4.5,4.5,4.5, m);
+      } else if (n == 1) {
+         m = mIdentity   ();
+         m = mPerspective(3, m);
+         m = mTranslate  (position[0],position[1],0, m);
+         m = mRotateX    (time/2, m);
+         m = mRotateY    (time, m);
+         m = mRotateZ    (time/4, m);
+         m = mScale      (.04,.04,.04, m);
+      } else if (n == 2) {
+         let c = C(time);
+         let s = S(time);
+         let c2 = C(time * 2);
+         let s2 = S(time * 2);
 
-      m = mIdentity   ();
-      m = mPerspective(3, m);
-      m = mRotateX    (Math.PI/2, m);
-      m = mTranslate  (-2,1,0, m);
-      m = mScale      (2,2,2, m);
+         m = mIdentity   ();
+         m = mPerspective(3, m);
+         m = mTranslate  (2*c2 - 2,0,2*s2, m);
+         m = mRotateX    (time, m);
+         m = mScale      (.04,.04,.04, m);
+      } else {
+         let c = C(time - Math.PI/2);
+         let s = S(time - Math.PI/2);
+         let c2 = C((time - Math.PI/2) * 2);
+         let s2 = S((time - Math.PI/2) * 2);
+
+         m = mIdentity   ();
+         m = mPerspective(3, m);
+         m = mTranslate  (2*c2 - 2,1.1,2*s2, m);
+         m = mRotateX    (time, m);
+         m = mScale      (.04,.04,.04, m);
+      }
 
       // SET THE VALUES OF VARIOUS UNIFORM VARIABLES
 
       gl.uniform3fv      (uColor    , meshData[n].color );
       gl.uniformMatrix4fv(uInvMatrix, false, mInverse(m));
       gl.uniformMatrix4fv(uMatrix   , false, m          );
+      gl.uniform1f(uTime, time);
 
       // RENDER THIS OBJECT
 
