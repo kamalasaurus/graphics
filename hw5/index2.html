@@ -210,15 +210,15 @@ let tetrahedron = strToTris(`PPPppn NNPppn NPNppn
 // DEFINE ALL THE OBJECT COLORS AND SHAPES
 
 let meshData = [
-   { type: 1, color: [1.,.1,.1], mesh: new Float32Array(sphere  (20, 10)) },
-   { type: 1, color: [.1,1.,.1], mesh: new Float32Array(tube    (20,  1)) },
-   { type: 1, color: [.1,.1,1.], mesh: new Float32Array(disk    (20,  1)) },
-   { type: 1, color: [1.,1.,.1], mesh: new Float32Array(cylinder( 4,  6)) },
-   { type: 1, color: [1.,.1,1.], mesh: new Float32Array(torus   (30, 30)) },
-   { type: 0, color: [.1,1.,1.], mesh: new Float32Array(cube) },
-   { type: 0, color: [1.,1.,1.], mesh: new Float32Array(octahedron) },
-   { type: 0, color: [.5,.5,1.], mesh: new Float32Array(icosahedron) },
-   { type: 0, color: [1.,.5,.5], mesh: new Float32Array(tetrahedron) }
+   // { type: 1, color: [1.,.1,.1], mesh: new Float32Array(sphere  (20, 10)) },
+   // { type: 1, color: [.1,1.,.1], mesh: new Float32Array(tube    (20,  1)) },
+   // { type: 1, color: [.1,.1,1.], mesh: new Float32Array(disk    (20,  1)) },
+   // { type: 1, color: [1.,1.,.1], mesh: new Float32Array(cylinder( 4,  6)) },
+   { type: 1, color: [1.,1.,1.], mesh: new Float32Array(torus   (50, 50)) },
+   // { type: 0, color: [.1,1.,1.], mesh: new Float32Array(cube) },
+   // { type: 0, color: [1.,1.,1.], mesh: new Float32Array(octahedron) },
+   // { type: 0, color: [.5,.5,1.], mesh: new Float32Array(icosahedron) },
+   // { type: 0, color: [1.,.5,.5], mesh: new Float32Array(tetrahedron) }
 ];
 
 // VERY SIMPLE VERTEX AND FRAGMENT SHADERS
@@ -242,7 +242,7 @@ let fragmentShader = `
    uniform vec3 uColor;
    varying vec3 vPos, vNor;
    void main(void) {
-      float c = .05 + max(0., dot(normalize(vNor), vec3(.57)));
+      float c = .15 + max(0., dot(normalize(vNor), vec3(0, 0, -1)));
       gl_FragColor = vec4(sqrt(c * uColor), 1.);
    }
 `;
@@ -273,9 +273,9 @@ function renderFrame() {
 
       m = mIdentity   ();
       m = mPerspective(3, m);
-      m = mRotateY    (time, m);
-      m = mTranslate  (c,s,0, m);
-      m = mScale      (.16,.16,.16, m);
+      m = mRotateX    (Math.PI/2, m);
+      m = mTranslate  (-2,1,0, m);
+      m = mScale      (2,2,2, m);
 
       // SET THE VALUES OF VARIOUS UNIFORM VARIABLES
 
