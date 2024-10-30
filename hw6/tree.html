@@ -248,7 +248,7 @@ let fragmentShader = `
    float c;
 
    void main(void) {
-      vec3 solar = normalize(vec3(cos(uTime), sin(uTime), 0.2));
+      vec3 solar = normalize(vec3(0.5*cos(uTime), sin(0.5*uTime), 0.2));
       if (uColor == vec3(1.,0.,0.)) {
          c = .05 + max(0., dot(normalize(vNor), solar));
          color = vec3(1., 0.8, 0.2);
