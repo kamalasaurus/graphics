@@ -1,5 +1,5 @@
-<body bgcolor=black>
-<center><canvas id='canvas1' width=800 height=800></canvas>
+<body bgcolor=black style="margin: 0; padding: 0;">
+<center><canvas id='canvas1' width=800 height=800 style="width: 100%; height: 100%; display: block;"></canvas>
 
 <script>
 
@@ -48,6 +48,7 @@ function Matrix() {
    this.scale = (x,y,z) => set(mScale(x,y,z, get()));
    this.translate = (x,y,z) => set(mTranslate(x,y,z, get()));
    this.get = () => get();
+   this.set = () => set();
    this.save = () => set(stack[top++].slice());
    this.restore = () => --top;
 }
@@ -56,6 +57,17 @@ function Matrix() {
 
 let start_gl = (canvas, vertexSize, vertexShader, fragmentShader) => {
    let gl = canvas.getContext("webgl");
+
+   function resizeCanvas() {
+      const devicePixelRatio = window.devicePixelRatio || 1;
+      canvas.width = window.innerWidth * devicePixelRatio;
+      canvas.height = window.innerHeight * devicePixelRatio;
+      gl.viewport(0, 0, canvas.width, canvas.height);
+   }
+
+   window.addEventListener('resize', resizeCanvas);
+   resizeCanvas();
+
    let program = gl.createProgram();
    gl.program = program;
    let addshader = (type, src) => {
@@ -203,10 +215,61 @@ let vertexShader = `
 let fragmentShader = `
    precision mediump float;
    uniform vec3 uColor;
+   uniform float uTime;
    varying vec3 vPos, vNor;
+
+   float noise(vec3 point) { float r = 0.; for (int i=0;i<16;i++) {
+      vec3 D, p = point + mod(vec3(i,i/4,i/8) , vec3(4.0,2.0,2.0)) +
+         1.7*sin(vec3(i,5*i,8*i)), C=floor(p), P=p-C-.5, A=abs(P);
+      C += mod(C.x+C.y+C.z,2.) * step(max(A.yzx,A.zxy),A) * sign(P);
+      D=34.*sin(987.*float(i)+876.*C+76.*C.yzx+765.*C.zxy);P=p-C-.5;
+      r+=sin(6.3*dot(P,fract(D)-.5))*pow(max(0.,1.-2.*dot(P,P)),4.);
+   } return .5 * sin(r); }
+
+   float turbulence(vec3 P) {
+      float f = 0., s = 1.;
+      for (int i = 0 ; i < 9 ; i++) {
+         f += abs(noise(s * P)) / s;
+         s *= 2.;
+         P = vec3(.866*P.x + .5*P.z, P.y + 100., -.5*P.x + .866*P.z);
+      }
+      return f;
+   }     
+
+   vec3 cloudify2(vec3 color, vec3 pos) {
+      float y = .1 * pos.y + .05;
+      y += turbulence(.1 * pos + vec3(.02*uTime,0.,.04*uTime));
+      color = mix(color, (vec3(.1) * color), y< 0. ? 0. : y>.1 ? 1. : y/.1);
+      color = mix(color, vec3(.5), y< .1 ? 0. : y-.1);
+      return color;
+   }
+
+   vec3 color;
+   float c;
+
    void main(void) {
-      float c = .05 + max(0., dot(normalize(vNor), vec3(.57)));
-      gl_FragColor = vec4(sqrt(c * uColor), 1.);
+      vec3 solar = normalize(vec3(0.5*cos(uTime), sin(0.5*uTime), 0.2));
+      if (uColor == vec3(1.,0.,0.)) {
+         c = .05 + max(0., dot(normalize(vNor), solar));
+         color = vec3(1., 0.8, 0.2);
+         color /= mix(vec3(turbulence(vPos.xyz)), vec3(0.6,0.2,0.6), 0.2);
+         color *= c;
+         color *= 0.4;
+      } else if (uColor == vec3(0.,1.,0.)) {
+         c = .05 + max(0., dot(normalize(vNor), solar));
+         color = c * uColor;
+         color *= mix(vec3(turbulence(vPos.yxz)), vec3(0.6,0.6,.02), 0.2);
+      } else if (uColor == vec3(0.,0.,1.)) {
+         vec3 sky = mix(uColor, vec3(0.2,0.2,0.2), vPos.y - 0.5);
+         vec3 clouds = cloudify2(sky, vPos);
+         c = .15 + max(dot(normalize(vNor), vec3(0., 0., -1.)), 0.);
+         color = c * clouds;
+      } else {
+         // c = .05 + max(0., dot(normalize(vNor), vec3(.57)));
+         c = .05 + max(0., dot(normalize(vNor), solar));
+         color = c * uColor;
+      }
+      gl_FragColor = vec4(sqrt(color), 1.);
    }
 `;
 
@@ -217,6 +280,7 @@ let gl = start_gl(canvas1, vertexSize, vertexShader, fragmentShader);
 let uColor     = gl.getUniformLocation(gl.program, "uColor"    );
 let uInvMatrix = gl.getUniformLocation(gl.program, "uInvMatrix");
 let uMatrix    = gl.getUniformLocation(gl.program, "uMatrix"   );
+let uTime      = gl.getUniformLocation(gl.program, "uTime"     );
 
 // INSTANTIATE THE MATRIX OBJECT
 
@@ -230,7 +294,7 @@ let render = (Shape, color) => {
    gl.uniform3fv      (uColor    , color );
    gl.uniformMatrix4fv(uInvMatrix, false, mInverse(M.get()));
    gl.uniformMatrix4fv(uMatrix   , false, M.get()          );
-
+ 
    // RENDER THIS OBJECT
 
    let mesh = Shape.mesh;
@@ -245,55 +309,159 @@ function renderFrame() {
    requestAnimationFrame(renderFrame);
    let time = Date.now() / 1000 - startTime, m;
 
-   M.identity().perspective(3);
+   gl.uniform1f(uTime, time);
+
+   M.identity().perspective(8);
 
    // DEFINE PARAMETERS THAT CONTROL THE SCENE AND THE ANIMATION
 
    let t = 2 * time;
-   let limbLength = .4;
-   let hipWidth = limbLength / 4;
-   let hipSway = .2 * C(t);
-   let phaseDiff = 1;//.5 + .5 * S(time);
-   let skinColor = [0,.5,1];
+   let treeSway = .2 * C(t);
+   let limbSway = .2 * S(t);
 
    // ANIMATE AND RENDER THE SCENE
 
-// M.translate(0,.4,0).rotateY(-Math.PI/2 + S(time));
-   M.translate(0,.4,0).rotateY(-Math.PI/3);
+   // L System adapted from the algorithmic beauty of plants and https://jsxgraph.org/wiki/index.php/JavaScript_code_for_producing_Lindenmayer_systems
+   const axiom = "F";
+   const rules = {
+      "F": "F[+F&F^F]/F[-F\\F/F]",
+      "+": "+",
+      "-": "-",
+      "&": "&",
+      "^": "^",
+      "\\": "\\",
+      "/": "/"
+   };
 
-   M.rotateX(hipSway);
-   M.save();
-      M.scale(.05,.05,hipWidth);
-      render(Sphere, skinColor);              // PELVIS
-   M.restore();
-   for (let side = -1 ; side <= 1 ; side += 2) {
-      let knee = .5 + .5 * S(t + side * Math.PI/2 * phaseDiff);
-      M.save();
-         M.translate(0,0,side * hipWidth);
-         M.rotateX(-hipSway);
-         M.rotateZ(knee);
-         M.save();
-            M.translate(0,-limbLength/2,0);
-            M.scale(.05,limbLength/2,.05);
-            render(Sphere, skinColor);        // UPPER LEG
-         M.restore();
-         M.translate(0,-limbLength,0);
-         M.save();
-            M.rotateZ(-2 * knee);
-            M.save();
-               M.translate(0,-limbLength/2,0);
-               M.scale(.05,limbLength/2,.05);
-               render(Sphere, skinColor);     // LOWER LEG
-            M.restore();
-            M.translate(0,-limbLength,0);
-            M.save();
-               M.translate(limbLength/4,0,0);
-	       M.scale(limbLength/4,.05,.05);
-               render(Sphere, skinColor);     // FOOT
-            M.restore();
-         M.restore();
-      M.restore();
+   const rules2 = {
+      "F": "F[+F&F&F]/F[-F\\F\\F]",
+      "+": "+",
+      "-": "-",
+      "&": "&",
+      "^": "^",
+      "\\": "\\",
+      "/": "/"
+   };
+
+   const angle = Math.PI / 7;
+
+   function generateLSystem(axiom, rules, iterations) {
+      let result = axiom;
+      for (let i = 0; i < iterations; i++) {
+         let newResult = "";
+         for (let char of result) {
+            newResult += rules[char] || char;
+         }
+         result = newResult;
+      }
+      return result;
    }
+
+   function renderTree(lSystem, angle, leafColor) {
+      for (let i = 0; i < lSystem.length; i++) {
+         let char = lSystem[i];
+         switch (char) {
+            case "F":
+               M.save();
+                  M.scale(0.0025, 0.025, 0.0025);
+                  render(Cylinder, [0.5, 0.3, 0.1]);
+               M.restore();
+               M.translate(0, 0.05, 0);
+               M.rotateX(treeSway/5);
+               // Check if the next character is not "F" to draw a leaf
+               // This is a trick I got from the web
+               if (i + 1 >= lSystem.length || lSystem[i + 1] !== "F") {
+                  M.save();
+                     M.rotateZ(limbSway/12);
+                     M.scale(0.01, 0.05, 0.05);
+                     M.translate(0, 1., 0);
+                     render(Disk, leafColor);
+                  M.restore();
+                  // I can't figure out why I have to rotate it after... I think I'm
+                  // screwing up my matrix transformation order
+                  M.rotateY(limbSway/12);
+               }
+               break;
+            case "+":
+               M.rotateZ(angle);
+               break;
+            case "-":
+               M.rotateZ(-angle);
+               break;
+            case "&":
+               M.rotateX(angle);
+               break;
+            case "^":
+               M.rotateX(-angle);
+               break;
+            case "\\":
+               M.rotateY(angle);
+               break;
+            case "/":
+               M.rotateY(-angle);
+               break;
+            case "[":
+               M.save();
+                  // I don't know why I need to rotate x by -0.025 -- it makes the
+                  // cylinders line up better, but it doesn't make sense per the 
+                  // walking example which only translated y :/
+                  M.translate(-0.025, 0.05, 0);
+               break;
+            case "]":
+               M.restore();
+               break;
+         }
+      }
+   }
+
+   const tree1 = generateLSystem(axiom, rules, 4);
+   const tree2 = generateLSystem(axiom, rules, 2);
+   const tree3 = generateLSystem(axiom, rules2, 3);
+   const tree4 = generateLSystem(axiom, rules2, 4);
+
+   M.save();
+      M.translate(0, -1.7, 0).scale(10, 0.1, 10);
+      render(Cube, [0, 1, 0]); // Ground
+   M.restore();
+
+   M.save();
+      M.translate(-1.5, -2.4, -9.4).scale(2.2, 1.5, 0.1).rotateZ(-Math.PI / 4 );
+      render(Cube, [1, 0, 0]); // mountain
+   M.restore();
+
+   M.save();
+      M.translate(2, -1.8, -9.6).scale(1.8, 2.2, 0.1).rotateZ(-Math.PI / 4 );
+      render(Cube, [1, 0, 0]); // mountain
+   M.restore();
+
+   M.save();
+      M.scale(10,10,10);
+      render(Sphere, [0,0,1]);
+   M.restore();
+
+   M.save();
+      M.translate(.2, -1.7, -5).rotateY(-Math.PI / 2);
+      M.rotateY(treeSway)
+      renderTree(tree1, angle, [0.1, 0.8, 0.1]);
+   M.restore();
+
+   M.save();
+      M.translate(-.8, -1.7, -8).rotateY(-Math.PI / 2);
+      M.rotateY(treeSway/2)
+      renderTree(tree2, angle*1.8, [0.8, 0.1, 0.1]);
+   M.restore();
+
+   M.save();
+      M.translate(1.1, -1.7, -7).rotateY(-Math.PI / 2);
+      M.rotateY(treeSway/3)
+      renderTree(tree3, angle/.75, [0.8, 0.8, 0.1]);
+   M.restore();
+
+   M.save();
+      M.translate(-1.1, -1.7, -.1).rotateY(-Math.PI / 2);
+      M.rotateY(treeSway*3.1)
+      renderTree(tree4, angle/1.1, [0.1, 0.8, 0.8]);
+   M.restore();
 }
 requestAnimationFrame(renderFrame);
 
