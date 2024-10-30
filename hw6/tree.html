@@ -248,8 +248,15 @@ let fragmentShader = `
    float c;
 
    void main(void) {
-      if (uColor == vec3(0.,1.,0.)) {
-         c = .05 + max(0., dot(normalize(vNor), vec3(.57)));
+      vec3 solar = normalize(vec3(cos(uTime), sin(uTime), 0.2));
+      if (uColor == vec3(1.,0.,0.)) {
+         c = .05 + max(0., dot(normalize(vNor), solar));
+         color = vec3(1., 0.8, 0.2);
+         color /= mix(vec3(turbulence(vPos.xyz)), vec3(0.6,0.2,0.6), 0.2);
+         color *= c;
+         color *= 0.4;
+      } else if (uColor == vec3(0.,1.,0.)) {
+         c = .05 + max(0., dot(normalize(vNor), solar));
          color = c * uColor;
          color *= mix(vec3(turbulence(vPos.yxz)), vec3(0.6,0.6,.02), 0.2);
       } else if (uColor == vec3(0.,0.,1.)) {
@@ -259,7 +266,6 @@ let fragmentShader = `
          color = c * clouds;
       } else {
          // c = .05 + max(0., dot(normalize(vNor), vec3(.57)));
-         vec3 solar = normalize(vec3(cos(uTime), sin(uTime), 0.2));
          c = .05 + max(0., dot(normalize(vNor), solar));
          color = c * uColor;
       }
@@ -419,12 +425,12 @@ function renderFrame() {
    M.restore();
 
    M.save();
-      M.translate(-2, -2.4, -9.4).scale(2, 2, 0.1).rotateZ(-Math.PI / 4 );
+      M.translate(-1.5, -2.4, -9.4).scale(2.2, 1.5, 0.1).rotateZ(-Math.PI / 4 );
       render(Cube, [1, 0, 0]); // mountain
    M.restore();
 
    M.save();
-      M.translate(2, -1.8, -9.6).scale(2, 2, 0.1).rotateZ(-Math.PI / 4 );
+      M.translate(2, -1.8, -9.6).scale(1.8, 2.2, 0.1).rotateZ(-Math.PI / 4 );
       render(Cube, [1, 0, 0]); // mountain
    M.restore();
 
