@@ -1,1 +1,545 @@
-<!DOCTYPE html><html><head><title>Page Title</title></head><body><p>hello</p></body></html>
+<head>
+  <style>
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      background: transparent;
+      cursor: pointer;
+      width: 15rem;
+    }
+
+    input[type="range"]::-webkit-slider-runnable-track {
+      background: #053a5f;
+      height: 0.5rem;
+    }
+
+    input[type="range"]::-moz-range-track {
+      background: #053a5f;
+      height: 0.5rem;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none; /* Override default look */
+      appearance: none;
+      margin-top: -12px; /* Centers thumb on the track */
+
+      /*custom styles*/
+      background-color: white;
+      height: 2rem;
+      width: 1rem;
+    }
+
+    input[type="range"]::-moz-range-thumb {
+      border: none; /*Removes extra border that FF applies*/
+      border-radius: 0; /*Removes default border-radius that FF applies*/
+
+      /*custom styles*/
+      background-color: #5cd5eb;
+      height: 2rem;
+      width: 1rem;
+    }
+  </style>
+</head>
+
+<body bgcolor=black style="margin: 0; padding: 0;">
+    <div style="color: white;">
+      <span style="display: inline-block; padding-right: 20px;">right-click + drag to orbit</span>
+      <span style="display: inline-block; padding-right: 20px;">click to infect the arabidopsis</span>
+      <span style="display: inline-block; padding-right: 20px;">slide to select number of plants</span>
+      <input type="range" id="slider" min="3" max="9" value="3" style="width: 200px; height: 30px;">
+    </div>
+    <center>
+      <div style="width: 80%; height: 80%; margin-top: 5%;">
+          <canvas id='canvas1' width=800 height=800 style="width: 100%; height: 100%; display: block;"></canvas>
+      </div>
+    </center>
+
+    <script>
+    
+    // MATRIX FUNCTIONS
+    
+    let mInverse = m => {
+       let dst = [], det = 0, cofactor = (c, r) => {
+          let s = (i, j) => m[c+i & 3 | (r+j & 3) << 2];
+          return (c+r & 1 ? -1 : 1) * ( (s(1,1) * (s(2,2) * s(3,3) - s(3,2) * s(2,3)))
+                                      - (s(2,1) * (s(1,2) * s(3,3) - s(3,2) * s(1,3)))
+                                      + (s(3,1) * (s(1,2) * s(2,3) - s(2,2) * s(1,3))) );
+       }
+       for (let n = 0 ; n < 16 ; n++) dst.push(cofactor(n >> 2, n & 3));
+       for (let n = 0 ; n <  4 ; n++) det += m[n] * dst[n << 2]; 
+       for (let n = 0 ; n < 16 ; n++) dst[n] /= det;
+       return dst;
+    }
+    let matrixMultiply = (a, b) => {
+       let dst = [];
+       for (let n = 0 ; n < 16 ; n++)
+          dst.push(a[n&3]*b[n&12] + a[n&3|4]*b[n&12|1] + a[n&3|8]*b[n&12|2] + a[n&3|12]*b[n&12|3]);
+       return dst;
+    }
+    let C = t => Math.cos(t);
+    let S = t => Math.sin(t);
+    let mIdentity = () => [ 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 ];
+    let mPerspective = (fl, m) => matrixMultiply(m, [1,0,0,0, 0,1,0,0, 0,0,1,-1/fl, 0,0,0,1]);
+    let mRotateX = (t, m) => matrixMultiply(m, [1,0,0,0, 0,C(t),S(t),0, 0,-S(t),C(t),0, 0,0,0,1]);
+    let mRotateY = (t, m) => matrixMultiply(m, [C(t),0,-S(t),0, 0,1,0,0, S(t),0,C(t),0, 0,0,0,1]);
+    let mRotateZ = (t, m) => matrixMultiply(m, [C(t),S(t),0,0, -S(t),C(t),0,0, 0,0,1,0, 0,0,0,1]);
+    let mScale = (x,y,z, m) => matrixMultiply(m, [x,0,0,0, 0,y,0,0, 0,0,z,0, 0,0,0,1]);
+    let mTranslate = (x,y,z, m) => matrixMultiply(m, [1,0,0,0, 0,1,0,0, 0,0,1,0, x,y,z,1]);
+    
+    // MATRIX OBJECT, BUILT FROM MATRIX FUNXTIONS
+    
+    function Matrix() {
+       let stack = [mIdentity()], top = 0;
+       let set = arg => { stack[top] = arg; return this; }
+       let get = () => stack[top];
+    
+       this.identity = () => set(mIdentity());
+       this.perspective = fl => set(mPerspective(fl, get()));
+       this.rotateX = t => set(mRotateX(t, get()));
+       this.rotateY = t => set(mRotateY(t, get()));
+       this.rotateZ = t => set(mRotateZ(t, get()));
+       this.scale = (x,y,z) => set(mScale(x,y,z, get()));
+       this.translate = (x,y,z) => set(mTranslate(x,y,z, get()));
+       this.get = () => get();
+       this.set = () => set();
+       this.save = () => set(stack[top++].slice());
+       this.restore = () => --top;
+    }
+    
+    // INITIALIZE GL
+    
+    let start_gl = (canvas, vertexSize, vertexShader, fragmentShader) => {
+       let gl = canvas.getContext("webgl");
+    
+       function resizeCanvas() {
+          const devicePixelRatio = window.devicePixelRatio || 1;
+          canvas.width = window.innerWidth * devicePixelRatio;
+          canvas.height = window.innerHeight * devicePixelRatio;
+          gl.viewport(0, 0, canvas.width, canvas.height);
+       }
+    
+       window.addEventListener('resize', resizeCanvas);
+       resizeCanvas();
+    
+       let program = gl.createProgram();
+       gl.program = program;
+       let addshader = (type, src) => {
+          let shader = gl.createShader(type);
+          gl.shaderSource(shader, src);
+          gl.compileShader(shader);
+          if (! gl.getShaderParameter(shader, gl.COMPILE_STATUS))
+             throw "Cannot compile shader:\n\n" + gl.getShaderInfoLog(shader);
+          gl.attachShader(program, shader);
+       };
+       addshader(gl.VERTEX_SHADER  , vertexShader  );
+       addshader(gl.FRAGMENT_SHADER, fragmentShader);
+       gl.linkProgram(program);
+       if (! gl.getProgramParameter(program, gl.LINK_STATUS))
+          throw "Could not link the shader program!";
+       gl.useProgram(program);
+       gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+       gl.enable(gl.DEPTH_TEST);
+       gl.enable(gl.BLEND);
+       gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+       gl.depthFunc(gl.LEQUAL);
+       let vertexAttribute = (name, size, position) => {
+          let attr = gl.getAttribLocation(program, name);
+          gl.enableVertexAttribArray(attr);
+          gl.vertexAttribPointer(attr, size, gl.FLOAT, false, vertexSize * 4, position * 4);
+       }
+       vertexAttribute('aPos', 3, 0);
+       vertexAttribute('aNor', 3, 3);
+       return gl;
+    }
+    
+    // CREATE A TRIANGLE_STRIP MESH
+    
+    let createMesh = (nu, nv, p) => {
+       let mesh = [];
+       for (let j = nv-1 ; j >= 0 ; j--) {
+          for (let i = 0 ; i <= nu ; i++)
+             mesh.push(p(i/nu,(j+1)/nv), p(i/nu,j/nv));
+          mesh.push(p(1,j/nv), p(0,j/nv));
+       }
+       return mesh.flat();
+    }
+    
+    // DEFINE VARIOUS KINDS OF TRIANGLE_STRIP MESHES
+    
+    let sphere = (nu, nv) => createMesh(nu, nv, (u,v) => {
+       let theta = 2 * Math.PI * u;
+       let phi = Math.PI * (v - .5);
+       let x = C(phi) * C(theta),
+           y = C(phi) * S(theta),
+           z = S(phi);
+       return [ x,y,z, x,y,z ];
+    });
+    
+    let tube = (nu, nv) => createMesh(nu, nv, (u,v) => {
+       let x = C(2 * Math.PI * u),
+           y = S(2 * Math.PI * u),
+           z = 2 * v - 1;
+       return [ x,y,z, x,y,0 ];
+    });
+    
+    let disk = (nu, nv) => createMesh(nu, nv, (u,v) => {
+       let x = v * C(2 * Math.PI * u),
+           y = v * S(2 * Math.PI * u);
+       return [ x,y,0, 0,0,1 ];
+    });
+    
+    let cylinder = (nu, nv) => createMesh(nu, nv, (u,v) => {
+       let x = C(2 * Math.PI * u),
+           y = S(2 * Math.PI * u);
+       switch (5 * v >> 0) {
+       case 0: return [ 0,0,-1, 0,0,-1 ];
+       case 1: return [ x,y,-1, 0,0,-1 ];
+       case 2: return [ x,y,-1, x,y, 0 ];
+       case 3: return [ x,y, 1, x,y, 0 ];
+       case 4: return [ x,y, 1, 0,0, 1 ];
+       case 5: return [ 0,0, 1, 0,0, 1 ];
+       }
+    });
+    
+    let torus = (nu, nv) => createMesh(nu, nv, (u,v) => {
+       let ct = C(2 * Math.PI * u);
+       let st = S(2 * Math.PI * u);
+       let cp = C(2 * Math.PI * v);
+       let sp = S(2 * Math.PI * v);
+       let x = (1 + .5 * cp) * ct,
+           y = (1 + .5 * cp) * st,
+           z =      .5 * sp;
+       return [ x,y,z, cp*ct,cp*st,sp ];
+    });
+    
+    // SHORTCUT TO MAKE IT EASIER TO DEFINE CUBE AND OCTAHEDRON
+    
+    let strToTris = str => {
+       let tris = [];
+       for (let n = 0 ; n < str.length ; n++)
+          switch (str.charAt(n)) {
+          case 'N': tris.push(-1    ); break;
+          case 'n': tris.push(-0.577); break;
+          case '0': tris.push( 0    ); break;
+          case 'p': tris.push( 0.577); break;
+          case 'P': tris.push( 1    ); break;
+          }
+       return tris;
+    }
+    
+    // DEFINE SOME MESHES MADE FROM TRIANGLES
+    
+    let cube = strToTris(`PNP00P PPP00P NPP00P  NPP00P NNP00P PNP00P
+                          NPN00N PPN00N PNN00N  PNN00N NNN00N NPN00N
+                          PPNP00 PPPP00 PNPP00  PNPP00 PNNP00 PPNP00
+                          NNPN00 NPPN00 NPNN00  NPNN00 NNNN00 NNPN00
+                          NPP0P0 PPP0P0 PPN0P0  PPN0P0 NPN0P0 NPP0P0
+                          PNN0N0 PNP0N0 NNP0N0  NNP0N0 NNN0N0 PNN0N0`);
+    
+    let octahedron = strToTris(`00Nnnn 0N0nnn N00nnn  P00pnn 0N0pnn 00Npnn
+                                N00npn 0P0npn 00Nnpn  00Nppn 0P0ppn P00ppn
+                                00Pnnp 0N0nnp N00nnp  00Ppnp 0N0pnp P00pnp
+                                N00npp 0P0npp 00Pnpp  P00ppp 0P0ppp 00Pppp`);
+    
+    // DEFINE ALL THE OBJECT SHAPES
+    
+    let Cube       = { type: 0, mesh: new Float32Array(cube) };
+    let Cylinder   = { type: 1, mesh: new Float32Array(cylinder(20,  6)) };
+    let Disk       = { type: 1, mesh: new Float32Array(disk    (20,  1)) };
+    let Octahedron = { type: 0, mesh: new Float32Array(octahedron) };
+    let Sphere     = { type: 1, mesh: new Float32Array(sphere  (20, 10)) };
+    let Torus      = { type: 1, mesh: new Float32Array(torus   (30, 30)) };
+    let Tube       = { type: 1, mesh: new Float32Array(tube    (20,  1)) };
+    
+    // VERY SIMPLE VERTEX AND FRAGMENT SHADERS
+    
+    let vertexSize = 6;
+    let vertexShader = `
+       attribute vec3 aPos, aNor;
+       uniform mat4 uMatrix, uInvMatrix;
+       varying vec3 vPos, vNor;
+       void main() {
+          vec4 pos = uMatrix * vec4(aPos, 1.0);
+          vec4 nor = vec4(aNor, 0.0) * uInvMatrix;
+          vPos = pos.xyz;
+          vNor = nor.xyz;
+          gl_Position = pos * vec4(1.,1.,-.1,1.);
+       }
+    `;
+    
+    let fragmentShader = `
+       precision mediump float;
+       uniform vec3 uColor;
+       uniform float uTime;
+       varying vec3 vPos, vNor;
+    
+       float noise(vec3 point) { float r = 0.; for (int i=0;i<16;i++) {
+          vec3 D, p = point + mod(vec3(i,i/4,i/8) , vec3(4.0,2.0,2.0)) +
+             1.7*sin(vec3(i,5*i,8*i)), C=floor(p), P=p-C-.5, A=abs(P);
+          C += mod(C.x+C.y+C.z,2.) * step(max(A.yzx,A.zxy),A) * sign(P);
+          D=34.*sin(987.*float(i)+876.*C+76.*C.yzx+765.*C.zxy);P=p-C-.5;
+          r+=sin(6.3*dot(P,fract(D)-.5))*pow(max(0.,1.-2.*dot(P,P)),4.);
+       } return .5 * sin(r); }
+    
+       float turbulence(vec3 P) {
+          float f = 0., s = 1.;
+          for (int i = 0 ; i < 9 ; i++) {
+             f += abs(noise(s * P)) / s;
+             s *= 2.;
+             P = vec3(.866*P.x + .5*P.z, P.y + 100., -.5*P.x + .866*P.z);
+          }
+          return f;
+       }     
+    
+       vec3 cloudify2(vec3 color, vec3 pos) {
+          float y = .1 * pos.y + .05;
+          y += turbulence(.1 * pos + vec3(.02*uTime,0.,.04*uTime));
+          color = mix(color, (vec3(.1) * color), y< 0. ? 0. : y>.1 ? 1. : y/.1);
+          color = mix(color, vec3(.5), y< .1 ? 0. : y-.1);
+          return color;
+       }
+    
+       vec3 color;
+       float c;
+    
+       void main(void) {
+          vec3 solar = normalize(vec3(0.5, 0.5, 0.5));
+          if (uColor == vec3(1.,0.,0.)) {
+             c = .05 + max(0., dot(normalize(vNor), solar));
+             color = vec3(1., 0.8, 0.2);
+             color /= mix(vec3(turbulence(vPos.xyz)), vec3(0.6,0.2,0.6), 0.2);
+             color *= c;
+             color *= 0.4;
+          } else if (uColor == vec3(0.,1.,0.)) {
+             c = .05 + max(0., dot(normalize(vNor), solar));
+             color = c * vec3(0.2,0.6,0.);
+             color *= mix(vec3(turbulence(vPos.yxz)), vec3(0.6,0.6,.02), 0.2);
+          } else {
+             // c = .05 + max(0., dot(normalize(vNor), vec3(.57)));
+             c = .05 + max(0., dot(normalize(vNor), solar));
+             color = c * uColor;
+          }
+          gl_FragColor = vec4(sqrt(color), 1.);
+       }
+    `;
+    
+    // INITIALIZE GL AND GET UNIFORM NAMES
+    
+    let gl = start_gl(canvas1, vertexSize, vertexShader, fragmentShader);
+    
+    let uColor     = gl.getUniformLocation(gl.program, "uColor"    );
+    let uInvMatrix = gl.getUniformLocation(gl.program, "uInvMatrix");
+    let uMatrix    = gl.getUniformLocation(gl.program, "uMatrix"   );
+    let uTime      = gl.getUniformLocation(gl.program, "uTime"     );
+    
+    // INSTANTIATE THE MATRIX OBJECT
+    
+    let M = new Matrix();
+    
+    // RENDER ONE SHAPE, AND GIVE IT A COLOR
+    
+    let render = (Shape, color) => {
+       // SET THE VALUES OF VARIOUS UNIFORM VARIABLES
+    
+       gl.uniform3fv      (uColor    , color );
+       gl.uniformMatrix4fv(uInvMatrix, false, mInverse(M.get()));
+       gl.uniformMatrix4fv(uMatrix   , false, M.get()          );
+     
+       // RENDER THIS OBJECT
+    
+       let mesh = Shape.mesh;
+       gl.bufferData(gl.ARRAY_BUFFER, mesh, gl.STATIC_DRAW);
+       gl.drawArrays(Shape.type ? gl.TRIANGLE_STRIP : gl.TRIANGLES, 0, mesh.length / vertexSize);
+    }
+    
+    // THE ANIMATION LOOP
+    
+    let clicked, drop, dropTimer, infectedPosition, infectedTimer, infectedClear;
+
+    let startTime = Date.now() / 1000;
+    const positions = [
+      [0, 0, 0],
+      [0.2, 0.3, 0],
+      [-0.4, -0.2, 0],
+      [0.4, -0.2, 0],
+      [-0.2, 0.3, 0],
+      [0.2, -0.3, 0],
+      [-0.4, 0.2, 0],
+      [0.4, 0.2, 0],
+      [-0.2, -0.3, 0],
+    ];
+
+    function getDistance(x1, y1, x2, y2) {
+      return Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+    }
+
+    canvas1.addEventListener('mousedown', function(event) {
+      const rect = canvas1.getBoundingClientRect();
+      const clickX = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      const clickY = -(((event.clientY - rect.top) / rect.height) * 2 - 1);
+
+      if (!drop) {
+        drop = [clickX, clickY, 4];
+        dropTimer = setTimeout(() => {
+          drop = null;
+        }, 2000);
+      }
+
+      for (position of positions) {
+        const distance = getDistance(clickX, clickY, position[0], position[1]);
+
+        if (distance <= 0.2) {
+          if (!clicked) {
+            clicked = true;
+            const currentPosition = position;
+            infectedTimer = setTimeout(() => {
+              infectedPosition = positions.indexOf(currentPosition);
+            }, 1000);
+            infectedClear = setTimeout(() => {
+              infectedPosition = null;
+              infectedTimer = null;
+              infectedClear = null;
+              clicked = false
+            }, 2000);
+          }
+          console.log(`Mouse click is near ${position}.`);
+        }
+      }
+    });
+    
+    let dragging = false;
+
+    let mx, my, rx = 0, ry = 0;
+    // using the right click to orbit
+    canvas1.onmousedown = e => { mx = e.clientX; my = e.clientY; if (e.button === 2) dragging = true }
+    canvas1.onmousemove = e => { if (dragging) { if (mx) { rx += e.clientX - mx; ry += e.clientY - my; mx = e.clientX; my = e.clientY; } }}
+    canvas1.onmouseup = e => { mx = undefined; if (e.button === 2) dragging = false}
+
+    function renderFrame() {
+       requestAnimationFrame(renderFrame);
+       let time = Date.now() / 1000 - startTime, m;
+    
+       gl.uniform1f(uTime, time);
+    
+       M.identity().perspective(8).rotateX(ry/100).rotateY(rx/100);
+    
+       // DEFINE PARAMETERS THAT CONTROL THE SCENE AND THE ANIMATION
+    
+       let t = 2 * time;
+       let treeSway = .2 * C(t);
+       let limbSway = .2 * S(t);
+    
+       // ANIMATE AND RENDER THE SCENE
+    
+       // L System adapted from the algorithmic beauty of plants and https://jsxgraph.org/wiki/index.php/JavaScript_code_for_producing_Lindenmayer_systems
+       const axiom = "F";
+       const rules = {
+          "F": "F[F]",
+          "+": "+",
+          "-": "-",
+          "&": "&",
+          "^": "^",
+          "\\": "\\",
+          "/": "/"
+       }; 
+    
+       const angle = Math.PI / 2;
+       const angle2 = (2 * Math.PI / 3) + (Math.PI / 18);
+    
+      function generateLSystem(axiom, rules, iterations) {
+        let result = axiom;
+        for (let i = 0; i < iterations; i++) {
+            let newResult = "";
+            for (let char of result) {
+              newResult += rules[char] || char;
+            }
+            result = newResult;
+        }
+        return result;
+      }
+    
+      function renderTree(lSystem, angle, leafColor) {
+        for (let i = 0; i < lSystem.length; i++) {
+          let char = lSystem[i];
+          switch (char) {
+            case "F":
+                // Check if the next character is not "F" to draw a leaf
+                // This is a trick I got from the web
+              if (i + 1 >= lSystem.length || lSystem[i + 1] !== "F") {
+                M.save();
+                  M.rotateZ(limbSway/12);
+                  M.translate(0, 0, 0.1 * i / lSystem.length);
+                  M.scale(0.01, 0.05, 0.05 * i / lSystem.length);
+                  M.rotateX(angle);
+                  render(Disk, leafColor.map(e => (e * 0.3) + (0.7 * e * (1 - i/lSystem.length))));
+                M.restore();
+              }
+              break;
+            case "+":
+              M.rotateZ(angle);
+              break;
+            case "-":
+              M.rotateZ(-angle);
+              break;
+            case "&":
+              M.rotateX(angle);
+              break;
+            case "^":
+              M.rotateX(-angle);
+              break;
+            case "\\":
+              M.rotateY(angle);
+              break;
+            case "/":
+              M.rotateY(-angle);
+              break;
+            case "[":
+              M.save();
+                // I don't know why I need to rotate x by -0.025 -- it makes the
+                // cylinders line up better, but it doesn't make sense per the 
+                // walking example which only translated y :/
+                M.translate(0, 0.01/3, 0);
+                M.rotateY(angle2);
+              break;
+            case "]":
+              M.restore();
+              break;
+          }
+        }
+      }
+
+      if (drop) {
+        M.save();
+          M.translate(drop[0], drop[1], drop[2]);
+          M.scale(0.1, 0.1, 0.1);
+          render(Sphere, [1, 0, 0]);
+        M.restore();
+        drop[2] -= 0.8;
+      }
+
+      for (let i = 0; i < slider.value; i++) {
+        const leafCount = [14, 15, 11][i % 3];
+        const position = positions[i];
+        const infected = infectedPosition === i;
+        const leafColor = infected ? [0.3, 0.1, 0.1] : [0.5, 0.8, 0.1];
+
+        const tree = generateLSystem(axiom, rules, leafCount);
+    
+        M.save();
+          M.translate(0, 0, -0.5).scale(10, 10, 0.1);
+          render(Cube, [0, 1, 0]); // Ground
+        M.restore();
+    
+        M.save();
+          M.translate(...position).rotateX(-Math.PI / 2);
+          M.rotateY(treeSway / (i + 1) + (i * Math.PI / 3));
+          renderTree(tree, angle, leafColor);
+        M.restore();
+      }
+    }
+    requestAnimationFrame(renderFrame);
+    
+    </script>
+    
+    
+    
