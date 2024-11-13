@@ -1,1 +1,127 @@
-<!DOCTYPE html><html><head><title>Page Title</title></head><body><p>hello</p></body></html>
+<body bgcolor=#ffffff style="margin: 0; padding: 0;">
+<div contenteditable="true" id="textInput" style="white-space: pre-wrap; position: absolute; top: 10; left: 10;">use wasd
+or arrows
+to move
+space to
+jump, rewrite
+< there
+</div>
+<canvas id=textureCanvas width=512 height=512 style=position:absolute;left:-1000></canvas>
+<center><canvas id=canvas1 width=800 height=800 style="width: 100%; height: 100%; display: block;"></canvas>
+<script src=lib.js></script>
+<script>
+
+texture(0, 'brick.png');
+texture(1, 'polka_dots.png');
+texture(2, textureCanvas);    // NOTE: THIS IS AN HTML CANVAS BEING USED AS A TEXTURE SOURCE.
+texture(3, 'bumpy.jpg');
+texture(4, 'coin.png');
+
+// adapted from some old code I wrote to move a character around on a screen
+let keys = {};
+let jump = false;
+let jumpHeight = 0;
+let jumpSpeed = 0.2;
+let gravity = 0.01;
+
+let keydown = e => {
+   keys[e.key] = true;
+   if (e.key === ' ') jump = true;
+};
+let keyup = e => {
+   keys[e.key] = false;
+   // if (e.key === ' ') jump = false;
+};
+
+let getDirection = () => {
+   let x = 0, y = 0;
+   if (keys.ArrowUp || keys.w) y = 1;
+   if (keys.ArrowDown || keys.s) y = -1;
+   if (keys.ArrowLeft || keys.a) x = -1;
+   if (keys.ArrowRight || keys.d) x = 1;
+   // normalize the vector
+   if (x && y) {
+      x /= Math.sqrt(2);
+      y /= Math.sqrt(2);
+   }
+   return [x, y];
+}
+addEventListener('keydown', keydown);
+addEventListener('keyup', keyup);
+
+let position = [0,0];
+let corridor_length = 40;
+let corridor = 0;
+
+// I tried to make an infinite corridor and failed
+function drawFrame() {
+   requestAnimationFrame(drawFrame);
+   let t = Date.now() / 1000;
+
+   let [x, y] = getDirection().map(a => a * .05);
+   position[0] += x;
+   position[1] += y;
+   // position = position.map(a => Math.min(1, Math.max(-1, a))) // clamp to the screen
+   position[0] = Math.min(1, Math.max(-1, position[0]))
+
+   // CHANGE THE CONTENT OF THE 2D CANVAS EVERY ANIMATION FRAME.
+
+   let ctx = textureCanvas.getContext('2d');
+   ctx.fillStyle = '#ffffff';
+   ctx.fillRect(0, 0, 512, 512);
+   ctx.fillStyle = 'black';
+   ctx.font = '100px Arial';
+   let minutes = (t/60>>0)%60, seconds = t%60>>0;        // FORMAT TIME TO MINUTES & SECONDS.
+   // ctx.fillText(minutes + 'm ' + seconds + 's', 60, 280);
+   // ctx.fillText(textInput.innerText, 60, 280);
+
+   let text = textInput.innerText;
+   let lines = text.split('\n');
+   let lineHeight = 80; // Adjust line height as needed
+
+   for (let i = 0; i < lines.length; i++) {
+      ctx.fillText(lines[i], 20, 80 + i * lineHeight);
+   }
+
+   if (jump) {
+      jumpHeight += jumpSpeed;
+      jumpSpeed -= gravity;
+      if (jumpHeight <= 0) {
+         jumpHeight = 0;
+         jumpSpeed = 0.2;
+         jump = false;
+      }
+   }
+
+   // Move the corridor forward whenever you're halfway through it
+   if (((3*position[1] - (corridor || corridor_length)) / corridor_length) >= 0.2) {
+      corridor += (3*position[1] + corridor_length); // Move the corridor forward by 20 units
+   }
+
+
+   // let clampX = Math.max(-40, Math.min(40, position[0]));
+   // let clampY = Math.max(-40, Math.min(40, position[1]));
+   let clampX = position[0];
+   let clampY = position[1];
+
+   M.S().perspective(3).move(-clampX,-jumpHeight,3*clampY);
+      M.S().move(0,-6,-corridor).scale(4, 0.1, 80).draw(Cube(),            [1,.5,.3]   , 1, -1, 3).R();
+      M.S().move(-4,-3,-corridor).turnZ(Math.PI/2).scale(8, 0.1, 80).draw(Cube(),  [1,1,1]   , 1, 0).R();
+      M.S().move(4,-3,-corridor).turnZ(-Math.PI/2).scale(8, 0.1, 80).draw(Cube(),  [1,1,1]   , 1, 0).R();
+      // M.S().move(-.6, .3,0).turnY( t).scale(.2).draw(Tube(30)    , [1,1,1]   , 1,  0   ).R();
+      // M.S().move(  0, .3,0).turnY( 0).scale(.2).draw(Sphere(30)  , [1,1,0]   , 1,      ).R();
+      // M.S().move( .6, .3,0).turnY( t).scale(.2).draw(Cylinder(30), [1,1,1]   , 1,  0   ).R();
+      // M.S().move(-.6,-.3,0).turnX(-t).scale(.2).draw(Cube()      , [1,1,1]   , 1,  1   ).R();
+      // M.S().move( .6,-.3,0).turnY(-t).scale(.2).draw(Torus(30)   , [1,.5,.3] , 1, -1, 3).R();
+      // M.S().move(  0,-.3,0).turnX( t).scale(.2).draw(Cube()      , [1,1,1]   , 1,  2,-1).R();
+      M.S().move(0,8,-(3*position[1])-40).scale(4).draw(Square()      , [1,1,1]   , 1,  2,-1 ).R();
+      M.S().move(0,8,-(3*position[1])-100).scale(100).draw(Square()      , [1,0,0]   , 1 ).R();
+      M.S().move(0,.3,.5).turnY( t).scale(.2).draw(Square()      , [1,1,1]   , 1,  4   ).R();
+      M.S().move(0,.3,-20).turnY( t).scale(.2).draw(Square()      , [1,1,1]   , 1,  4   ).R();
+      M.S().move(0,.3,-45).turnY( t).scale(.2).draw(Square()      , [1,1,1]   , 1,  4   ).R();
+   M.R();
+}
+requestAnimationFrame(drawFrame);
+
+</script>
+
