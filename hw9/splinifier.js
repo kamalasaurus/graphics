@@ -1,19 +1,15 @@
 'use strict';
-
-function coord(x,y) {
-    return {x, y};
-}
+import {Linear, Cubic, Hermite, Bezier, BSpline, CatmullRom} from './splines.js';
 
 void function() {
+    const devicePixelRatio = window.devicePixelRatio || 1;
+
     let canvas = document.getElementById('canvas');
     let render_canvas = document.getElementById('render_canvas');
     let ctx = canvas.getContext('2d');
     let gl = render_canvas.getContext('webgl');
 
-    let mode = "spline";
-
     function resizeCanvas() {
-        const devicePixelRatio = window.devicePixelRatio || 1;
         canvas.width = window.innerWidth * devicePixelRatio;
         canvas.height = window.innerHeight * devicePixelRatio;
 
@@ -25,73 +21,149 @@ void function() {
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
 
-    let points = [];
+    let coord = (x,y) => {
+        return {x, y};
+    }
 
-    canvas.addEventListener('mousedown', (e) => {
-        // get the pixel position of the mouse
-        let rect = canvas.getBoundingClientRect();
-        let x = e.clientX - rect.left;
-        let y = e.clientY - rect.top;
-        points.push(coord(x, y));
-    })
+    let setMode = (e) => {
+        mode = e.target.id;
+        if (mode === "spline")
+            document.querySelector('.splines').style.display = 'inline-block';
+        else
+            document.querySelector('.splines').style.display = 'none';
+    }
 
-    canvas.addEventListener('mouseup', (e) => {
-        let point = points[points.length - 1];
-        switch (mode) {
-            case "spline":
-                // set fill color
-                ctx.fillStyle = 'red';
-                // draw rectangle centered at the point
-                ctx.fillRect(point.x-5, point.y-5, 10, 10);
-                break;
-            case "move":
-                // draw circle centered at the point
-                // ctx.beginPath();
-                // ctx.arc(point.x, point.y, 5, 0, 2 * Math.PI);
-                // ctx.fill();
-                break;
-        }
+    let setSpline = (e) => {
+        splineType = e.target.id;
+    }
 
-        // let ctx = canvas.getContext('2d');
-        // ctx.beginPath();
-        // ctx.moveTo(coords.x, coords.y);
-        // ctx.lineTo(x, y);
-        // ctx.closePath();
-        // ctx.stroke();
-    })
-
-    clear.addEventListener('mousedown', (e) => {
+    let clear = (e) => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         points = [];
-    });
+    }
 
-    spline.addEventListener('mousedown', (e) => {
-        mode = "spline";
-    });
+    let mode = "spline";
+    let splineType = "linear";
 
-    move.addEventListener('mousedown', (e) => {
-        mode = "move";
-    });
+    let points = [];
+    let activePoint = null;
 
-    [
-       {x: 100, y: 100},
-       {x: 200, y: 100},
-       {x: 200, y: 200},
-       {x: 100, y: 200}
-    ].forEach((point) => {
+    document.body.addEventListener('mousedown', (e) => {
+        switch(e.target.id) {
+            case "canvas": canvasDown(e); break;
+            case "spline": setMode(e); break;
+            case "move": setMode(e); break;
+            case "remove": setMode(e); break;
+            case "clear": clear(e); break;
+            case "close": closePoints(e); break;
+            case "cubic": setSpline(e); break;
+            case "hermite": setSpline(e); break;
+            case "bezier": setSpline(e); break;
+            case "bspline": setSpline(e); break;
+            case "catmullrom": setSpline(e); break;
+        }
+    })
+
+    document.body.addEventListener('mouseup', (e) => {
+        switch(e.target.id) {
+            case "canvas": canvasUp(e); break;
+        }
+    })
+
+    document.body.addEventListener('mousemove', (e) => {
+        if (activePoint) {
+            let dot = document.getElementById('dot') || redDotCursor(e.clientX, e.clientY);
+            dot.style.left = e.clientX + 'px';
+            dot.style.top = e.clientY + 'px';
+        }
+    })
+
+    let canvasDown = (e) => {
+        let rect = canvas.getBoundingClientRect();
+        let x = (e.clientX * devicePixelRatio) - rect.left;
+        let y = (e.clientY * devicePixelRatio) - rect.top;
+        let point = coord(x, y);
+        if (point.y < 40) return;
+        let overlap = points.some(p => Math.abs(p.x - point.x) < 10 && Math.abs(p.y - point.y) < 10);
+        switch (mode) {
+            case "spline": addPoint(point, overlap); break;
+            case "move": selectPoint(point, overlap); break;
+            case "remove": removePoint(point, overlap); break;
+        }
+    }
+
+    let canvasUp = (e) => {
+        switch (mode) {
+            case "spline": renderPoints(); break;
+            case "move": movePoint(e); break;
+            case "remove": renderPoints(); break;
+        }
+    }
+
+    let addPoint = (point, overlap) => {
+        if (overlap) return;
         points.push(point);
-        ctx.beginPath();
-        ctx.arc(point.x, point.y, 5, 0, 2 * Math.PI);
-        // ctx.fill();
-    });
-    // let splines = points;
-    // ctx.beginPath();
-    // ctx.moveTo(splines[0].x, splines[0].y);
-    // for (let i = 1; i < splines.length; i++) {
-    //    ctx.lineTo(splines[i].x, splines[i].y);
-    // }
-    ctx.closePath();
-    ctx.stroke();
+    }
 
+    let selectPoint = (point, overlap) => {
+        if (overlap) {
+            activePoint = points.find(p => Math.abs(p.x - point.x) < 10 && Math.abs(p.y - point.y) < 10);
+        }
+    }
 
+    let removePoint = (point, overlap) => {
+        if (overlap) {
+            points = points.filter(p => Math.abs(p.x - point.x) > 10 || Math.abs(p.y - point.y) > 10);
+        }
+    }
+
+    let movePoint = (e) => {
+        if (activePoint) {
+            let rect = canvas.getBoundingClientRect();
+            let x = (e.clientX * devicePixelRatio) - rect.left;
+            let y = (e.clientY * devicePixelRatio) - rect.top;
+            activePoint.x = x;
+            activePoint.y = y;
+            activePoint = null;
+        }
+        document.getElementById('dot').remove();
+        renderPoints();
+    }
+
+    let renderPoints = () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (points.length == 0) return;
+        renderCurve();
+        points.forEach(p => {
+            ctx.fillStyle = 'black';
+            ctx.fillRect(p.x-5, p.y-5, 10, 10);
+        });
+    }
+
+    let renderCurve = () => {
+        ctx.strokeStyle = '#cccccc';
+        ctx.lineWidth = 2;
+        switch (splineType) {
+            case "linear": Linear(ctx, points); break;
+            case "cubic": Cubic(ctx, points); break;
+            case "hermite": Hermite(ctx, points); break;
+            case "bezier": Bezier(ctx, points); break;
+            case "bspline": BSpline(ctx, points); break;
+            case "catmullrom": CatmullRom(ctx, points); break;
+        }
+    }
+
+    let redDotCursor = (x, y) => {
+        let dot = document.createElement('div');
+        dot.id = 'dot';
+        dot.style.position = 'absolute';
+        dot.style.width = `${10 / devicePixelRatio}px`;
+        dot.style.height = `${10 / devicePixelRatio}px`;
+        dot.style.backgroundColor = 'red';
+        dot.style.left = x + 'px';
+        dot.style.top = y + 'px';
+        dot.style.pointerEvents = 'none';
+        document.body.appendChild(dot);
+        return dot;
+    }
 }();
