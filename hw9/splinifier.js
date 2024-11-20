@@ -58,8 +58,7 @@ void function() {
     }
 
     let closePoints = (e) => {
-        if (points.length < 2) return;
-        points.push(points[0]);
+        if (points.length < 4) return;
         closed = true;
         renderPoints();
         setPositions();
@@ -136,6 +135,17 @@ void function() {
         }
     }
 
+    let metapoints = () => {
+        if (!closed) return points;
+        switch (splineType) {
+            case "linear": return points.concat(points[0]);
+            case "hermite": return points.concat(points[0]); // I have to change the beginning and end tangents for this to be smooth :/
+            case "bezier": return points.concat(points[0]).concat(points[1]).concat(points[2]).concat(points[3]);
+            case "bspline": return points.concat(points[0]).concat(points[1]).concat(points[2]).concat(points[3]);
+            case "catmullrom": return points.concat(points[0]).concat(points[1]).concat(points[2]).concat(points[3]);
+        }
+    }
+
     let addPoint = (point, overlap) => {
         if (overlap) return;
         points.push(point);
@@ -176,11 +186,11 @@ void function() {
     let renderCurve = () => {
         if (points.length < 2) return;
         switch (splineType) {
-            case "linear": pixels = Linear(ctx, points); break;
-            case "hermite": pixels = Hermite(ctx, points); break;
-            case "bezier": pixels = Bezier(ctx, points); break;
-            case "bspline": pixels = BSpline(ctx, points); break;
-            case "catmullrom": pixels = CatmullRom(ctx, points); break;
+            case "linear": pixels = Linear(ctx, metapoints()); break;
+            case "hermite": pixels = Hermite(ctx, metapoints()); break;
+            case "bezier": pixels = Bezier(ctx, metapoints()); break;
+            case "bspline": pixels = BSpline(ctx, metapoints()); break;
+            case "catmullrom": pixels = CatmullRom(ctx, metapoints()); break;
         }
     }
 
