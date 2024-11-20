@@ -1,18 +1,28 @@
-export function Linear(ctx, points, pixels) {
+export function Linear(ctx, points) {
     ctx.beginPath();
     ctx.moveTo(points[0].x, points[0].y);
+    let path_pixels = [];
     for (let i = 0; i < points.length - 1; i++) {
         let p0 = points[i];
         let p1 = points[i + 1];
+
+        for (let j = 0; j < 100; j++) {
+            let t = j / 100;
+            let x = p0.x + t * (p1.x - p0.x);
+            let y = p0.y + t * (p1.y - p0.y);
+            path_pixels.push({x, y});
+        }
         ctx.lineTo(p1.x, p1.y);
     }
     ctx.stroke();
     ctx.closePath();
+    return path_pixels;
 }
 
 export function Hermite(ctx, points) {
     const tangents = [];
     const n = points.length;
+    let path_pixels = [];
 
     for (let i = 0; i < n; i++) {
         if (i === 0) {
@@ -48,7 +58,8 @@ export function Hermite(ctx, points) {
             const x = a * P0.x + b * P1.x + c * R0[0] + d * R1[0];
             const y = a * P0.y + b * P1.y + c * R0[1] + d * R1[1];
 
-            curve.push([x, y]);
+            curve.push({x, y});
+            path_pixels.push({x, y});
         }
         return curve;
     }
@@ -64,18 +75,21 @@ export function Hermite(ctx, points) {
         const curve = hermiteSpline(P0, P1, R0, R1);
 
         // Draw the curve
-        ctx.moveTo(curve[0][0], curve[0][1]);
+        ctx.moveTo(curve[0].x, curve[0].y);
         for (let j = 1; j < curve.length; j++) {
-            ctx.lineTo(curve[j][0], curve[j][1]);
+            ctx.lineTo(curve[j].x, curve[j].y);
         }
         ctx.strokeStyle = "blue";
         ctx.lineWidth = 2;
         ctx.stroke();
     }
     ctx.closePath();
+    return path_pixels;
 }
 
 export function Bezier(ctx, points) {
+    let path_pixels = [];
+
     let bezierBasis = (t) => {
         return [
             (1 - t) ** 3,           // a
@@ -94,7 +108,8 @@ export function Bezier(ctx, points) {
             const x = a * P0.x + b * P1.x + c * P2.x + d * P3.x;
             const y = a * P0.y + b * P1.y + c * P2.y + d * P3.y;
 
-            curve.push([x, y]);
+            curve.push({x, y});
+            path_pixels.push({x, y});
         }
         return curve;
     }
@@ -109,18 +124,21 @@ export function Bezier(ctx, points) {
         const curve = bezierCurve(P0, P1, P2, P3);
 
         // Draw the curve
-        ctx.moveTo(curve[0][0], curve[0][1]);
+        ctx.moveTo(curve[0].x, curve[0].y);
         for (let j = 1; j < curve.length; j++) {
-            ctx.lineTo(curve[j][0], curve[j][1]);
+            ctx.lineTo(curve[j].x, curve[j].y);
         }
         ctx.strokeStyle = "blue";
         ctx.lineWidth = 2;
         ctx.stroke();
     }
     ctx.closePath();
+    return path_pixels;
 }
 
 export function BSpline(ctx, points) {
+    let path_pixels = [];
+
     let bsplineBasis = (t) => {
         return [
             (1 - t) ** 3 / 6,                           // a
@@ -139,7 +157,8 @@ export function BSpline(ctx, points) {
             const x = a * P0.x + b * P1.x + c * P2.x + d * P3.x;
             const y = a * P0.y + b * P1.y + c * P2.y + d * P3.y;
 
-            curve.push([x, y]);
+            curve.push({x, y});
+            path_pixels.push({x, y});
         }
         return curve;
     }
@@ -154,18 +173,21 @@ export function BSpline(ctx, points) {
         const curve = bsplineCurve(P0, P1, P2, P3);
 
         // Draw the curve
-        ctx.moveTo(curve[0][0], curve[0][1]);
+        ctx.moveTo(curve[0].x, curve[0].y);
         for (let j = 1; j < curve.length; j++) {
-            ctx.lineTo(curve[j][0], curve[j][1]);
+            ctx.lineTo(curve[j].x, curve[j].y);
         }
         ctx.strokeStyle = "blue";
         ctx.lineWidth = 2;
         ctx.stroke();
     }
     ctx.closePath();
+    return path_pixels;
 }
 
 export function CatmullRom(ctx, points) {
+    let path_pixels = [];
+
     let catmullRomBasis = (t) => {
         return [
             -0.5 * t ** 3 + t ** 2 - 0.5 * t,       // a
@@ -184,7 +206,8 @@ export function CatmullRom(ctx, points) {
             const x = a * P0.x + b * P1.x + c * P2.x + d * P3.x;
             const y = a * P0.y + b * P1.y + c * P2.y + d * P3.y;
 
-            curve.push([x, y]);
+            curve.push({x, y});
+            path_pixels.push({x, y});
         }
         return curve;
     }
@@ -199,15 +222,16 @@ export function CatmullRom(ctx, points) {
         const curve = catmullRomCurve(P0, P1, P2, P3);
 
         // Draw the curve
-        ctx.moveTo(curve[0][0], curve[0][1]);
+        ctx.moveTo(curve[0].x, curve[0].y);
         for (let j = 1; j < curve.length; j++) {
-            ctx.lineTo(curve[j][0], curve[j][1]);
+            ctx.lineTo(curve[j].x, curve[j].y);
         }
         ctx.strokeStyle = "blue";
         ctx.lineWidth = 2;
         ctx.stroke();
     }
     ctx.closePath();
+    return path_pixels;
 }
 
 export default {Linear, Hermite, Bezier, BSpline, CatmullRom};

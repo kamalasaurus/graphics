@@ -64,6 +64,7 @@ void function() {
     let points = [];
     let activePoint = null;
     let closed = false;
+    let pixels = [];
 
     document.body.addEventListener('mousedown', (e) => {
         switch(e.target.id) {
@@ -161,42 +162,13 @@ void function() {
         if (points.length < 2) return;
         ctx.strokeStyle = '#cccccc';
         ctx.lineWidth = 2;
-        // getPixelsBetweenPoints(points)
         switch (splineType) {
-            case "linear": Linear(ctx, points); break;
-            case "hermite": Hermite(ctx, points); break;
-            case "bezier": Bezier(ctx, points); break;
-            case "bspline": BSpline(ctx, points); break;
-            case "catmullrom": CatmullRom(ctx, points); break;
+            case "linear": pixels = Linear(ctx, points); break;
+            case "hermite": pixels = Hermite(ctx, points); break;
+            case "bezier": pixels = Bezier(ctx, points); break;
+            case "bspline": pixels = BSpline(ctx, points); break;
+            case "catmullrom": pixels = CatmullRom(ctx, points); break;
         }
-    }
-
-    let getPixelsBetweenPoints = (points) => {
-        let pixels = [];
-        for (let i = 0; i < points.length - 1; i++) {
-            let p0 = points[i];
-            let p1 = points[i + 1];
-            let dx = Math.abs(p1.x - p0.x);
-            let dy = Math.abs(p1.y - p0.y);
-            let sx = (p0.x < p1.x) ? 1 : -1;
-            let sy = (p0.y < p1.y) ? 1 : -1;
-            let err = dx - dy;
-
-            while (true) {
-                pixels.push({x: p0.x, y: p0.y});
-                if (p0.x === p1.x && p0.y === p1.y) break;
-                let e2 = 2 * err;
-                if (e2 > -dy) {
-                    err -= dy;
-                    p0.x += sx;
-                }
-                if (e2 < dx) {
-                    err += dx;
-                    p0.y += sy;
-                }
-            }
-        }
-        return pixels;
     }
 
     let redDotCursor = (x, y) => {
