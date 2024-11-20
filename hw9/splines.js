@@ -14,6 +14,8 @@ export function Linear(ctx, points) {
         }
         ctx.lineTo(p1.x, p1.y);
     }
+    ctx.strokeStyle = 'gray';
+    ctx.lineWidth = 2;
     ctx.stroke();
     ctx.closePath();
     return path_pixels;
@@ -79,7 +81,7 @@ export function Hermite(ctx, points) {
         for (let j = 1; j < curve.length; j++) {
             ctx.lineTo(curve[j].x, curve[j].y);
         }
-        ctx.strokeStyle = "blue";
+        ctx.strokeStyle = "red";
         ctx.lineWidth = 2;
         ctx.stroke();
     }
@@ -128,7 +130,7 @@ export function Bezier(ctx, points) {
         for (let j = 1; j < curve.length; j++) {
             ctx.lineTo(curve[j].x, curve[j].y);
         }
-        ctx.strokeStyle = "blue";
+        ctx.strokeStyle = "green";
         ctx.lineWidth = 2;
         ctx.stroke();
     }
@@ -226,7 +228,7 @@ export function CatmullRom(ctx, points) {
         for (let j = 1; j < curve.length; j++) {
             ctx.lineTo(curve[j].x, curve[j].y);
         }
-        ctx.strokeStyle = "blue";
+        ctx.strokeStyle = "orange";
         ctx.lineWidth = 2;
         ctx.stroke();
     }

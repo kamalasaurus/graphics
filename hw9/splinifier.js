@@ -41,6 +41,7 @@ void function() {
     let setSpline = (e) => {
         splineType = e.target.id;
         renderPoints();
+        setPositions();
     }
 
     let clear = (e) => {
@@ -50,6 +51,10 @@ void function() {
         pixels = [];
         positions = [];
         position = 0;
+        gl.clearColor(0.0, 0.0, 0.0, 0.0); // Set the clear color to transparent
+        gl.clearDepth(1.0); // Clear everything
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); // Clear the color and depth buffer
+        reloadShaders();
     }
 
     let closePoints = (e) => {
@@ -57,6 +62,10 @@ void function() {
         points.push(points[0]);
         closed = true;
         renderPoints();
+        setPositions();
+    }
+
+    let setPositions = () => {
         positions = pixels.map(p => canvasToWebGLCoords(p.x, p.y, canvas))
         position = 0;
     }
@@ -166,8 +175,6 @@ void function() {
 
     let renderCurve = () => {
         if (points.length < 2) return;
-        ctx.strokeStyle = '#cccccc';
-        ctx.lineWidth = 2;
         switch (splineType) {
             case "linear": pixels = Linear(ctx, points); break;
             case "hermite": pixels = Hermite(ctx, points); break;
@@ -365,13 +372,19 @@ void function() {
     `;
     
     // INITIALIZE GL AND GET UNIFORM NAMES
-    
-    let gl = start_gl(render_canvas, vertexSize, vertexShader, fragmentShader);    
-    
-    let uColor     = gl.getUniformLocation(gl.program, "uColor"    );
-    let uInvMatrix = gl.getUniformLocation(gl.program, "uInvMatrix");
-    let uMatrix    = gl.getUniformLocation(gl.program, "uMatrix"   );
-    let uTime      = gl.getUniformLocation(gl.program, "uTime"    );
+   
+    let gl, uColor, uInvMatrix, uMatrix, uTime;   
+
+    function reloadShaders() {
+        gl?.deleteProgram(gl.program);
+        gl = start_gl(render_canvas, vertexSize, vertexShader, fragmentShader);
+        uColor     = gl.getUniformLocation(gl.program, "uColor");
+        uInvMatrix = gl.getUniformLocation(gl.program, "uInvMatrix");
+        uMatrix    = gl.getUniformLocation(gl.program, "uMatrix");
+        uTime      = gl.getUniformLocation(gl.program, "uTime");
+    }    
+
+    reloadShaders();
 
     // INSTANTIATE THE MATRIX OBJECT
 
@@ -401,18 +414,18 @@ void function() {
 
         gl.uniform1f(uTime, time);
 
-        M.identity()
 
+        M.identity();
         // ANIMATE AND RENDER THE SCENE
         if (closed) {
             M.save();
                 M.translate(x, y, 0).scale(.02, .02, .02).rotateY(time).rotateX(time / 2);
-                render(Ico, [0, 1, 0]); // Ground
+                render(Ico, [0, 1, 0]);
             M.restore();
             ++position;
             if (position >= positions.length) position = 0;
         }
-    }    
+    }
 
     resizeCanvas();
     requestAnimationFrame(renderFrame);
