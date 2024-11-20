@@ -40,6 +40,14 @@ void function() {
     let clear = (e) => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         points = [];
+        closed = false;
+    }
+
+    let closePoints = (e) => {
+        if (points.length < 2) return;
+        points.push(points[0]);
+        closed = true;
+        renderPoints();
     }
 
     let mode = "spline";
@@ -47,6 +55,7 @@ void function() {
 
     let points = [];
     let activePoint = null;
+    let closed = false;
 
     document.body.addEventListener('mousedown', (e) => {
         switch(e.target.id) {
@@ -56,6 +65,7 @@ void function() {
             case "remove": setMode(e); break;
             case "clear": clear(e); break;
             case "close": closePoints(e); break;
+            case "linear": setSpline(e); break;
             case "cubic": setSpline(e); break;
             case "hermite": setSpline(e); break;
             case "bezier": setSpline(e); break;
@@ -79,6 +89,7 @@ void function() {
     })
 
     let canvasDown = (e) => {
+        if (closed) return;
         let rect = canvas.getBoundingClientRect();
         let x = (e.clientX * devicePixelRatio) - rect.left;
         let y = (e.clientY * devicePixelRatio) - rect.top;
