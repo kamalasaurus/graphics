@@ -25,6 +25,13 @@ void function() {
         return {x, y};
     }
 
+    let getPoint = (e) => {
+        let rect = canvas.getBoundingClientRect();
+        let x = (e.clientX * devicePixelRatio) - rect.left;
+        let y = (e.clientY * devicePixelRatio) - rect.top;
+        return coord(x, y);
+    }
+
     let setMode = (e) => {
         mode = e.target.id;
         if (mode === "spline")
@@ -83,17 +90,18 @@ void function() {
     document.body.addEventListener('mousemove', (e) => {
         if (activePoint) {
             let dot = document.getElementById('dot') || redDotCursor(e.clientX, e.clientY);
+            let point = getPoint(e);
+            activePoint.x = point.x;
+            activePoint.y = point.y;
             dot.style.left = e.clientX + 'px';
             dot.style.top = e.clientY + 'px';
+            renderPoints();
         }
     })
 
     let canvasDown = (e) => {
         if (closed) return;
-        let rect = canvas.getBoundingClientRect();
-        let x = (e.clientX * devicePixelRatio) - rect.left;
-        let y = (e.clientY * devicePixelRatio) - rect.top;
-        let point = coord(x, y);
+        let point = getPoint(e);
         if (point.y < 40) return;
         let overlap = points.some(p => Math.abs(p.x - point.x) < 10 && Math.abs(p.y - point.y) < 10);
         switch (mode) {
@@ -104,9 +112,10 @@ void function() {
     }
 
     let canvasUp = (e) => {
+        let point = getPoint(e);
         switch (mode) {
             case "spline": renderPoints(); break;
-            case "move": movePoint(e); break;
+            case "move": movePoint(point); break;
             case "remove": renderPoints(); break;
         }
     }
@@ -128,13 +137,10 @@ void function() {
         }
     }
 
-    let movePoint = (e) => {
+    let movePoint = (point) => {
         if (activePoint) {
-            let rect = canvas.getBoundingClientRect();
-            let x = (e.clientX * devicePixelRatio) - rect.left;
-            let y = (e.clientY * devicePixelRatio) - rect.top;
-            activePoint.x = x;
-            activePoint.y = y;
+            activePoint.x = point.x;
+            activePoint.y = point.y;
             activePoint = null;
         }
         document.getElementById('dot')?.remove();
