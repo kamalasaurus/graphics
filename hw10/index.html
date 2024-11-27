@@ -1,1 +1,120 @@
-<!DOCTYPE html><html><head><title>Page Title</title></head><body><p>hello</p></body></html>
+<body bgcolor=#808080><font face=courier>
+<center><canvas id=canvas1 width=900 height=700></canvas>
+<script src=lib.js></script>
+<script>
+
+trackMouse(canvas1);
+texture(0,'brick.png');
+texture(1,'brick.png', true);
+
+// I PRE-BUILD ALL MY OBJECTS FOR EFFICIENCY.
+
+let myCube     = Cube();
+let myCylinder = Cylinder(20);
+let mySphere   = Sphere(20);
+let myTube    = Tube(20);
+let cube2      = Cube(true);
+
+
+// MY MATERIAL IN THIS EXAMPLE IS UNIFORM FOG.
+
+addMaterial(1, `color = mix(color, vec3(.5), min(.95,.007 * dot(vTpos, vTpos)));`);
+addMaterial(2, `color = mix(color, vec3(noise(vPos)), min(.95,.007 * dot(vTpos, vTpos)));`);
+startGL(canvas1);
+
+// MY SPRING HAS HIGH MASS, SO IT WILL RESPOND LIKE A HEAVY OBJECT.
+
+let spring = new Spring();
+spring.setMass(3);
+
+function drawFrame() {
+   requestAnimationFrame(drawFrame);
+   let time = Date.now() / 1000;
+
+   // SCALE THE SCENE NON-UNIFORMLY BECAUSE THE CANVAS IS NOT SQUARE.
+
+   VM.identity().perspective(3).scale(1,canvas1.width/canvas1.height,1);
+
+   // USE THE MOUSE TO ROTATE THE VIEW ONLY IF NOT RUNNING ON A PHONE.
+
+   if (! isPhone())
+      VM.turnX(canvas1.ry/30).turnY(canvas1.rx/30);
+
+   drawScene(() => {
+      material = 1;
+
+      // PLACE AND THEN RENDER THE JOINTS (SHOULDER, ELBOW, WRIST), USING IK.
+
+      let s = [-.3,.3,-3];
+      let s_neg = [.3,.3,-3];
+      let s_top = [0,.5,0];
+      let w = [.2+.3*ease(.5+.5*S(5*time+C(4*time))),.3,-3];
+      let w_neg = [-.2-.3*ease(.5+.5*S(5*time+C(4*time))),.3,-3];
+      let w_top = [-.2+.3*ease(.5+.5*S(3.5*time+C(1.2*time))),.3,-3]
+      let e = add(s,ik(.5,.5,subtract(w,s),[0,1,0]));
+      let e_neg = add(s_neg,ik(.5,.5,subtract(w_neg,s_neg),[0,1,0]));
+      let e_top = add(s_top,ik(.5,.5,subtract(w_top,s_top),[0,1,0]));
+      let q = [0,0,-1];
+      let ww = [0,-1.5,-1]
+
+      // SETTING
+      M.S().move(q).scale(1,1,3).turnZ(Math.PI/2).draw(myTube, [.2,.2,.2],1,1).R();
+      M.S().move(ww).scale(1,1,3).draw(cube2, [.005,.1,.005]).R();
+
+      // DRAW THE JOINTS.
+      M.S().move(add([.3,-.45,1], [.2*Math.sin(time),-.3,.5])).scale(.8)
+
+
+         M.S().move(s).scale(.1, .1, 0.6).draw(myCylinder  ,[0,0,0]).R();
+         M.S().move(add(s, [0,0,0.6])).scale(.1).draw(mySphere, [0,0,0]).R();
+         M.S().move(add(s, [-.06,0,.65])).scale(.03).draw(mySphere, [1,0,0]).R();
+         M.S().move(add(s, [.06,0,.65])).scale(.03).draw(mySphere, [1,0,0]).R();
+
+
+         for (let i = 0; i < 3; i++) {
+            M.S().move([0, 0, i * 0.3]);
+               M.S().move(w).scale(.07).draw(mySphere  ,[0,0,0]).R();
+               M.S().move(e).scale(.07,.07,.04).draw(mySphere,[0,0,0]).R();
+               M.S().move(mix(s,e,.5)).aim(subtract(e,s)).scale(.02,.02,distance(s,e)/2).draw(myCube,[0.1,0.1,0.1]).R();
+               M.S().move(mix(e,w,.5)).aim(subtract(w,e)).scale(.02,.02,distance(e,w)/2).draw(myCube,[0.1,0.1,0.1]).R();
+            M.R();
+         }
+
+         for (let i = 0; i < 3; i++) {
+            M.S().move([0, 0, i * 0.3]).move([-.6, 0, 0]);
+               M.S().move(w_neg).scale(.07).draw(mySphere  ,[0,0,0]).R();
+               M.S().move(e_neg).scale(.07,.07,.04).draw(mySphere,[0,0,0]).R();
+               M.S().move(mix(s_neg,e_neg,.5)).aim(subtract(e_neg,s_neg)).scale(.02,.02,distance(s_neg,e_neg)/2).draw(myCube,[0.1,0.1,0.1]).R();
+               M.S().move(mix(e_neg,w_neg,.5)).aim(subtract(w_neg,e_neg)).scale(.02,.02,distance(e_neg,w_neg)/2).draw(myCube,[0.1,0.1,0.1]).R();
+            M.R();
+         }
+
+         // M.S().move(w).scale(.07).draw(mySphere  ,[0,.5,1]).R();
+         // M.S().move(e).scale(.07,.07,.04).draw(mySphere,[0,.5,1]).R();
+
+         // DRAW THE LIMBS THAT CONNECT THE JOINTS.
+
+         // M.S().move(mix(s,e,.5)).aim(subtract(e,s)).scale(.02,.02,distance(s,e)/2).draw(myCube,[1,1,1]).R();
+         // M.S().move(mix(e,w,.5)).aim(subtract(w,e)).scale(.02,.02,distance(e,w)/2).draw(myCube,[1,1,1]).R();
+      M.R();
+
+      // DANGLE A MASS BELOW THE ELBOW, AND ANIMATE IT WITH A SPRING FORCE.
+
+      M.S().move(s_top)
+         spring.setForce(e_top[0]);
+         spring.update(.03);
+         let x = spring.getPosition();
+         let p = add(e_top, scale(normalize([x,-.2,0]),.2));
+         M.S().move(p).aim(subtract(p,e_top)).scale(.15, .15, .02).draw(mySphere,[.01,.05,.01]).R();
+         M.S().move(mix(e_top,p,.5)).aim(subtract(p,e_top)).scale(.01,.01,distance(e_top,p)/2).draw(myCube,[.01,.05,.01]).R();
+      M.R();
+      // ADD A TEXTURED OBJECT IN THE DISTANCE TO SHOW THAT FOG IS WORKING.
+
+      material = 2;
+      M.S().move(0,0,-12).scale(2).draw(myCube,[0,0.5,.2]).R();
+   });
+}
+requestAnimationFrame(drawFrame);
+
+</script>
+
