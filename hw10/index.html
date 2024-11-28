@@ -67,9 +67,9 @@ function drawFrame() {
          M.S().move(add(s, [.06,0,.65])).scale(.03).draw(mySphere, [1,0,0]).R();
 
 
-         for (let i = 0; i < 3; i++) {
-            let w = [.3+.2*ease(.6+.4*S(5/(i+1)*time+C(4/(i+1)*time))),.3,-3];
-            let w_neg = [-.3-.2*ease(.6+.4*S(5/(i+1)*time+C(4*time/(i+1)))),.3,-3];
+         for (let i = 0; i < 3; i++) {//+C(4/(i+1)*time) //+C(4/(i+1)*time)
+            let w = [.3+.2*ease(.6+.4*S(5/(i+1)*time)),.3,-(2.8 + .2*C(5/(i+1)*time))];
+            let w_neg = [-.3-.2*ease(.6+.4*S(5/(i+1)*time)),.3,-(2.8 + .2*C(5/(i+1)*time))];
             let e = add(s,ik(.5,.5,subtract(w,s),[0,1,0]));
             let e_neg = add(s_neg,ik(.5,.5,subtract(w_neg,s_neg),[0,1,0]));
 
@@ -82,8 +82,8 @@ function drawFrame() {
          }
 
          for (let i = 0; i < 3; i++) {
-            let w = [.3+.2*ease(.6+.4*S(5/(i+1)*time+C(4/(i+1)*time))),.3,-3];
-            let w_neg = [-.3-.2*ease(.6+.4*S(5/(i+1)*time+C(4/(i+1)*time))),.3,-3];
+            let w = [.3+.2*ease(.6+.4*S(5/(i+1)*time)),.3,-(2.8 + .2*C(5/(i+1)*time))];
+            let w_neg = [-.3-.2*ease(.6+.4*S(5/(i+1)*time)),.3,-(2.8 + .2*C(5/(i+1)*time))];
             let e = add(s,ik(.5,.5,subtract(w,s),[0,1,0]));
             let e_neg = add(s_neg,ik(.5,.5,subtract(w_neg,s_neg),[0,1,0]));
 
