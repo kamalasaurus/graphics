@@ -1,0 +1,34 @@
+1.  I'd like to make a PDB renderer -- basically it will ingest a PDB format file, which is like a point cloud (it's a list of atoms assigned to sequential amino acid residues, followed by x,y,z coordinates, and some meta information).  Since my research is in the interaction of plant-proteins, I'd like to create a web context that can show my work!
+
+99% of proteins are <1500 amino acids long.  This is for informatic and thermodynamic reasons.  A natural amino acid has a minimum of 10 atoms (glycine, with no side chain), up to 27 atoms (tryptophan, a bulky aromatic side chain).  Of course synthetic amino acids exist and there are other exotic ones in strange life forms, but 99% of life uses the standard genetic code corresponding to the 20 common amino acids.  A lot of 99%s!
+
+There are tools to view pdbs already (pymol or chimera on the desktop) and rendering contexts used by alphafold (google) or the more recent protein folding startups.  But they are either closed source or on the desktop!  I'd like to make a protein renderer that anyone can drop into any web page and display their molecular labors.
+
+My plan is thus:
+1. parse an uploaded pdb
+2. convert the x,y,z into vertices
+    a. only the alpha carbon (backbone) atoms first
+    b. make a catmull-rom spline between the points to see the backbone!
+    c. try out the webgl line primitive?
+        aa. there's the standard cylinder view, but maybe I can just put narrow quads on each point.  I'm not sure.
+        bb. the color information for this view would probably be the residue type.
+3. utilize the orbital commands to rotate the protein around, zoom, and maybe pan.
+4. time-permitting: make a standard linear (cylinder) interpolation of every atom.
+    a. how would I round off the edges?  I guess I could draw a sphere at every point.
+    b. the color information for the vertex would be derived from the atom type for this view.
+5. time-permitting: can I make a cartoon view?  A lot of renderers use an idealized alpha helix or beta sheet in their rendering for comprehension
+    a. maybe compile dss to web-assembly?  It's a tool that classifies the secondary structure of each atom.
+6. time-permitting: maybe this is the first one--just make a point cloud with discs for each atom.  and then build from there.
+
+
+
+
+2.  A real-time face detection game.  I used a model in the past that I could load via ml5.js to detect face boundaries.  I think the game I would make would be detecting if you mouth is open, so it would take the video stream from your camera.  On top of that I would render some 3d-rendered fruits or popcorn or something that flies at your face.  The goal is to catch the food with your mouth.  But!  Occasionally a bug or something flies at your face.  If you eat a bug you lose.
+
+
+
+3.  A real-time pose tracking animator.  Again in the past, I used a model (posenet) to detect the pose of a person from the camera input.  This created a walking figure.  Mapping this to a digital homonculus would be fun (so when you squat, the character squats).  Jumping jack to jumping jack.  Might need to be simplified, so the character is constantly running like temple run and you can go side to side, or jump, or duck.  The obstacles keep coming but if you get whacked, you fall into the pirahna pit!
+
+
+
+
