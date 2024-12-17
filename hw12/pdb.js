@@ -1,5 +1,3 @@
-import Module from './mkdssp.js';
-
 /* atom {
   record, serial, atm, residue, chain, residue_sequence,
   x, y, z, occupancy, b, element, secondaryStructure,
@@ -8,7 +6,7 @@ import Module from './mkdssp.js';
 */
 export class Atom {
   constructor(args = {record, serial, atm, residue, chain, residue_sequence,
-    x, y, z, occupancy, b, element, /*secondaryStructure*/}) {
+    x, y, z, occupancy, b, element}) {
     Object.assign(this, args); // I've impressed myself with my destructuring skills
   }
 
@@ -39,28 +37,13 @@ export class Atom {
 }
 
 export class PDB {
-  static moduleInstance = null;
-
   #pdb
   #atoms
-  #secondaryStructures
-  #helices
-  #sheets
 
   constructor(pdb) {
     this.#pdb = pdb;
-    //const result = this.#generateSecondaryStructures();
-    // this.#secondaryStructures = result.secondaryStructures;
-    // this.#helices = result.helices;
-    // this.#sheets = result.sheets;
     this.#atoms = this.#parseAtoms();
     console.log(this.atoms);
-  }
-
-  static async initializeModule() {
-    if (!PDB.moduleInstance) {
-      PDB.moduleInstance = await Module();
-    }
   }
 
   static async fromFile(file) {
@@ -72,51 +55,7 @@ export class PDB {
     });
     return new PDB(data);
   }
-
-  async #generateSecondaryStructures() {
-    const pdbString = this.toString();
-
-    // Ensure FS is available
-    const { FS, callMain } = PDB.moduleInstance;
-
-    if (!FS) {
-      throw new Error("FS module not available");
-    }
-
-    // Create a temporary file in the virtual filesystem
-    const inputFileName = '/input.pdb';
-    const outputFileName = '/output.dssp';
-    FS.writeFile(inputFileName, pdbString);
-
-    const tmp = FS.readFile(inputFileName, { encoding: 'utf8' });
-
-    // Run mkdssp with the input file and capture the output
-    const args = [inputFileName, outputFileName];
-    callMain(args);
-
-    // Read the output file from the virtual filesystem
-    const result = FS.readFile(outputFileName, { encoding: 'utf8' });
-    console.log("mkdssp result:", result);
-
-    // Parse the result as needed
-    const secondaryStructures = this.#parseDSSP(result);
-    return { secondaryStructures };
-  }
-
-  #parseDSSP(dsspOutput) {
-    // Implement parsing logic for DSSP output
-    // This is a placeholder implementation
-    const secondaryStructures = [];
-    const lines = dsspOutput.split('\n');
-    for (const line of lines) {
-      if (line.startsWith('ATOM') || line.startsWith('HETATM')) {
-        const [record, serial, structure] = line.split(/\s+/);
-        secondaryStructures.push({ serial: parseInt(serial), structure });
-      }
-    }
-    return secondaryStructures;
-  }
-
+ 
   toString() {
     return this.#pdb;
   }
@@ -133,8 +72,6 @@ export class PDB {
         const [ record, serial, atm, residue, chain, residue_sequence,
           x, y, z, occupancy, b, element ] = line.split(/\s+/);
 
-        // const secondaryStructure = this.#secondaryStructures.find(ss => ss.serial === parseInt(serial))?.structure || "";
-
         const atom = new Atom({
           record,
           serial: parseInt(serial),
@@ -149,8 +86,7 @@ export class PDB {
             z: parseFloat(z)
           },
           occupancy: parseFloat(occupancy),
-          b: parseFloat(b),
-          // secondaryStructure
+          b: parseFloat(b)
         });
         atoms.push(atom);
       }
@@ -165,14 +101,6 @@ export class PDB {
 
   get atoms() {
     return this.#atoms;
-  }
-
-  get helices() {
-    return this.#helices;
-  }
-
-  get sheets() {
-    return this.#sheets;
   }
 
   residues() {
@@ -217,24 +145,13 @@ export class PDB {
     return this.atoms.map((atom) => atom.coordinates);
   }
 
-  bonds() {
-    // ...existing code...
-  }
-
-  secondaryStructure() {
-    // ...existing code...
-  }
-
   distance(atom1, atom2) {
-    // ...existing code...
+    // stuff
   }
 
   select(query) {
-    // ...existing code...
+    // stuff
   }
 }
-
-// Initialize the mkdssp module when the class is first loaded
-PDB.initializeModule();
 
 export default { Atom, PDB };
