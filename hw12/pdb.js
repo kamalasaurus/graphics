@@ -1,13 +1,37 @@
 /* atom {
-  record, serial, atm, residue, chain, residue_sequence,
-  x, y, z, occupancy, b, element, secondaryStructure,
+  record, serial, name, residue, chain, residue_sequence,
+  x, y, z, occupancy, b, element, code,
   distance, select, toString, toObject
 }
 */
 export class Atom {
-  constructor(args = {record, serial, atm, residue, chain, residue_sequence,
+  static AMNIO_ACID_SINGLE_LETTER_FROM_THREE_LETTER = {
+    "ALA": "A",
+    "ARG": "R",
+    "ASN": "N",
+    "ASP": "D",
+    "CYS": "C",
+    "GLN": "Q",
+    "GLU": "E",
+    "GLY": "G",
+    "HIS": "H",
+    "ILE": "I",
+    "LEU": "L",
+    "LYS": "K",
+    "MET": "M",
+    "PHE": "F",
+    "PRO": "P",
+    "SER": "S",
+    "THR": "T",
+    "TRP": "W",
+    "TYR": "Y",
+    "VAL": "V"
+  }
+
+  constructor(args = {record, serial, name, residue, chain, residue_sequence,
     x, y, z, occupancy, b, element}) {
     Object.assign(this, args); // I've impressed myself with my destructuring skills
+    this.code = Atom.AMNIO_ACID_SINGLE_LETTER_FROM_THREE_LETTER[this.residue];
   }
 
   distance(atom) {
@@ -22,12 +46,13 @@ export class Atom {
   }
 
   toString() {
-    return `${this.name} ${this.element} ${this.residue} ${this.chain} ${this.coordinates}`;
+    return `${this.name} ${this.code} ${this.element} ${this.residue} ${this.chain} ${this.coordinates}`;
   }
 
   toObject() {
     return {
       name: this.name,
+      code: this.code,
       element: this.element,
       residue: this.residue,
       chain: this.chain,
@@ -43,7 +68,7 @@ export class PDB {
   constructor(pdb) {
     this.#pdb = pdb;
     this.#atoms = this.#parseAtoms();
-    console.log(this.atoms);
+    window.tmp = this;
   }
 
   static async fromFile(file) {
@@ -57,7 +82,8 @@ export class PDB {
   }
  
   toString() {
-    return this.#pdb;
+    // this will crash safari if the pdb is too big
+    return this.pdb;
   }
 
   #parseAtoms() {
@@ -69,13 +95,13 @@ export class PDB {
 
     for (const line of lines) {
       if (line.startsWith("ATOM") || line.startsWith("HETATM")) {
-        const [ record, serial, atm, residue, chain, residue_sequence,
+        const [ record, serial, name, residue, chain, residue_sequence,
           x, y, z, occupancy, b, element ] = line.split(/\s+/);
 
         const atom = new Atom({
           record,
           serial: parseInt(serial),
-          atm,
+          name,
           element,
           residue,
           chain,
@@ -96,21 +122,56 @@ export class PDB {
   }
 
   get pdb() {
-    return this.#pdb;
+    // this will crash the browser if the pdb is too big
+    return `${this.#pdb}`;
   }
 
   get atoms() {
     return this.#atoms;
   }
 
-  residues() {
-    const residues = this.atoms.reduce((residues, atom) => {
-      const residue = residues.find((residue) => residue.name === atom.residue);
+  get residues() {
+    return this.#residues();
+  }
+  
+  get fasta() {
+    return this.#fasta();
+  }
+
+  get fastas() {
+    return this.#fastas();
+  }
+
+  get chains() {
+    return this.#chains();
+  }
+
+  get backbones() {
+    return this.#backbones();
+  }
+
+  get coordinates() {
+    return this.#coordinates();
+  }
+
+  get chain_coordinates() {
+    return this.#chain_coordinates();
+  }
+
+  get chain_backbone_coordinates() {
+    return this.#chain_backbone_coordinates();
+  }
+
+  #residues(chain = this.atoms) {
+    const residues = chain.reduce((residues, atom) => {
+      const residue = residues.find((residue) => residue.sequence === atom.residue_sequence);
       if (residue) {
         residue.atoms.push(atom);
       } else {
         residues.push({
           name: atom.residue,
+          code: atom.code,
+          sequence: atom.residue_sequence,
           atoms: [atom]
         });
       }
@@ -120,7 +181,20 @@ export class PDB {
     return residues;
   }
 
-  chains() {
+  #fasta() {
+    return this.residues.map((residue) => residue.code).join("");
+  }
+
+  #fastas() {
+    return this.chains.map((chain) => {
+      return {
+        name: chain.name,
+        sequence: chain.residues.map((residue) => residue.code).join("")
+      };
+    });
+  }
+
+  #chains() {
     const chains = this.atoms.reduce((chains, atom) => {
       const chain = chains.find((chain) => chain.name === atom.chain);
       if (chain) {
@@ -132,17 +206,48 @@ export class PDB {
         });
       }
       return chains;
-    }, []);
+    }, []).map((chain) => {
+      const residues = this.#residues(chain.atoms);
+      return {
+        name: chain.name,
+        residues
+      };
+    });
 
     return chains;
   }
 
-  centralAtoms() {
-    return this.atoms.filter((atom) => atom.name === "CA");
+  #backbones() {
+    return this.chains.map((chain) => {
+      return {
+        name: chain.name,
+        atoms: chain.residues.map((residue) => {
+          return residue.atoms.filter((atom) => atom.name === "CA").pop();
+        })
+      };
+    });
   }
 
-  coordinates() {
-    return this.atoms.map((atom) => atom.coordinates);
+  #coordinates(atoms = this.atoms) {
+    return atoms.map((atom) => atom.coordinates);
+  }
+
+  #chain_coordinates() {
+    return this.chains.map((chain) => {
+      return {
+        name: chain.name,
+        coordinates: chain.residues.map((residue) => this.#coordinates(residue.atoms)).flat()
+      };
+    });
+  }
+
+  #chain_backbone_coordinates() {
+    return this.backbones.map((backbone) => {
+      return {
+        name: backbone.name,
+        coordinates: this.#coordinates(backbone.atoms)
+      };
+    });
   }
 
   distance(atom1, atom2) {
