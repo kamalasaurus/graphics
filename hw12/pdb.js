@@ -68,7 +68,6 @@ export class PDB {
   constructor(pdb) {
     this.#pdb = pdb;
     this.#atoms = this.#parseAtoms();
-    window.tmp = this;
   }
 
   static async fromFile(file) {
