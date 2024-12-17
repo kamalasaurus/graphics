@@ -1,0 +1,21 @@
+brew install emscripten
+git clone git@github.com:PDB-REDO/dssp.git
+cd dssp
+export CC=emcc
+export CXX=em++
+rm -rf build
+#emcmake cmake -S . -B build -DCMAKE_EXE_LINKER_FLAGS="-s USE_ZLIB=1"
+
+#emcmake cmake -S . -B build \
+  -DCMAKE_EXE_LINKER_FLAGS="-s USE_ZLIB=1 -s MODULARIZE=1 -s EXPORT_ES6=1 -s FORCE_FILESYSTEM=1 -s EXPORTED_RUNTIME_METHODS='[\"callMain\",\"FS\"]'" \
+  -DCMAKE_C_FLAGS="-O2 -s ASSERTIONS=1" \
+  -DCMAKE_CXX_FLAGS="-O2 -s ASSERTIONS=1"
+
+emcmake cmake -S . -B build \
+  -DCMAKE_EXE_LINKER_FLAGS="-g -s ASSERTIONS=1 -s DISABLE_EXCEPTION_CATCHING=0 -s USE_ZLIB=1 -s MODULARIZE=1 -s EXPORT_ES6=1 -s FORCE_FILESYSTEM=1 -s EXPORTED_RUNTIME_METHODS='[\"callMain\",\"FS\"]'"  \
+   -DCMAKE_C_FLAGS="-O2 -s ASSERTIONS=1" \
+   -DCMAKE_CXX_FLAGS="-O2 -s ASSERTIONS=1"
+
+
+cmake --build build
+cp build/mkdssp* <TARGET_DIRECTORY>
