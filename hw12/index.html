@@ -116,6 +116,7 @@
               return;
             }
 
+            // this is a hack to reduce the number of points in the spline
             const sampledPoints = [];
             for(let j = 0; j < points.length; j += 9) {
               sampledPoints.push(points[j], points[j+1], points[j+2]);
@@ -165,6 +166,9 @@
         }
       });
 
+      // I'm using hsb because it's easier to generate a range of colors that are
+      // visually distinct from each other
+      // adapted from https://stackoverflow.com/questions/39118528/rgb-to-hsl-conversion
       function getColorForIndex(i, total) {
         const hue = (i / total) * 360;
         const h = hue / 360;
@@ -203,6 +207,12 @@
             .move(0, 0, -20);
 
         // Draw each spline twice with slight offset for thicker appearance
+        // this one actually worked.  I guess LINE_STRIP doesn't have thickness
+        // that I can modify in webgl?  I tried to use gl.lineWidth but it didn't
+        // seem to do anything.  I also tried to use a fragment shader to draw a
+        // line with a thickness but that didn't work either.  Maybe I did it wrong.
+        // Anyway, this works and it's not too slow.  Maybe I'll see what works w/
+        // webgl2 or webgpu next, since the shaders are so simple.
         prebuiltSplines.forEach((spline, i) => {
             const color = getColorForIndex(i, prebuiltSplines.length);
             M.S()
