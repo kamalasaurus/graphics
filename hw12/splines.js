@@ -1,7 +1,11 @@
+// Ironically, the protein backbones alone can have way too
+// many points to successfully render in the browser context
+// so you have to subsample so it doesn't crash the browser
 export function CatmullRom(points, numPoints = 10) {
     const result = [];
 
     // Need at least 4 points for Catmull-Rom
+    // this makes sure that something always renders
     if (points.length < 12) { // 4 points * 3 coordinates
         // If not enough points, just return the original points
         return new Float32Array(points);
@@ -20,6 +24,8 @@ export function CatmullRom(points, numPoints = 10) {
             const t3 = t2 * t;
 
             // Catmull-Rom matrix calculation for each coordinate
+            // had to mine https://github.com/mrdoob/three.js/blob/dev/src/extras/curves/CatmullRomCurve3.js
+            // to make sure the earlier formulation worked
             for (let coord = 0; coord < 3; coord++) {
                 const v = 0.5 * (
                     (-p0[coord] + 3*p1[coord] - 3*p2[coord] + p3[coord]) * t3 +

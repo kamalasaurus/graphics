@@ -1,12 +1,24 @@
-let vertexSize = 3; // Only need position coordinates now
+let vertexSize = 3; // Only need position coordinates now -- i don't know if this is used in the library anymore
 
+
+// these shaders are super simple, which feel a little sad
+// but I guess all the information was in the ingested data
+// if I expand this to be more than just line strips, then
+// maybe I can do lighting and shading and stuff, which would
+// be cool
+
+// the most difficult part of this project is stranded on a different
+// branch -- I was using emscripten to compile an old C-library that
+// would classify secondary structures so I could just render simplified
+// shapes.  Unfortunately I ran into dependency hell and had to shelve
+// it for time constraints.
 let vertexShader = `
    attribute vec3 aPos;
    uniform mat4 uMatrix, uVMatrix;
    void main() {
       vec4 pos = uVMatrix * uMatrix * vec4(aPos, 1.0);
       gl_Position = pos;
-      gl_PointSize = 3.0;  // This makes vertices slightly larger
+      gl_PointSize = 3.0;  // This makes vertices slightly larger -- not sure if it worked
    }
 `;
 
@@ -18,6 +30,9 @@ let fragmentShader = `
    }
 `;
 
+// most of this is taken from the library for hw10 -- I removed
+// all the cool shapes cause I'm just using lines because I wasn't
+// sure if this would work at all.
 // Matrix math support
 let mxm = (a, b) => {
    let d = [];
@@ -36,6 +51,8 @@ let mTranslate = (x,y,z) => [1,0,0,0, 0,1,0,0, 0,0,1,0, x,y,z,1];
 
 // TRACK THE MOUSE
 
+// I don't have middle-click panning because I couldn't figure it
+// out in time
 let trackMouse = canvas => {
    canvas.rx = 0;
    canvas.ry = 0;
@@ -56,6 +73,9 @@ let trackMouse = canvas => {
    canvas.onmouseup = e => canvas.pressed = undefined;
    
    // Use addEventListener with passive option
+   // the browser gets mad if you don't give it this
+   // passive flag -- the zoom is clamped between some values that
+   // made visual sense
    canvas.addEventListener('wheel', e => {
       e.preventDefault();
       canvas.zoom *= (1 - e.deltaY * 0.001);
@@ -66,6 +86,9 @@ let trackMouse = canvas => {
 let gl, uColor, uMatrix, uVMatrix;
 
 // Spline primitive
+// I have to give it the gl context to get the gl.LINE_STRIP primitive
+// I have to think about this instantiation pattern so I can precompute
+// the splines
 let Spline = (gl, points) => {
    return { 
       type: gl.LINE_STRIP,
@@ -123,6 +146,10 @@ let startGL = canvas => {
    gl.lineWidth(2.0);  // Make lines thicker
 
    // After GL is initialized, create the Spline function and drawScene
+   // I couldn't quite figure out how to compartmentalize the lib into
+   // a module on the time constraint, so I'm using this as a hack --
+   // because M and VM share a context in both files.  I'll have to think
+   // about an instantiation pipeline
    window.Spline = Spline;
    return gl;
 }

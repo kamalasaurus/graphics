@@ -41,14 +41,19 @@ export class Atom {
     return Math.sqrt(x * x + y * y + z * z);
   }
 
+  // this is unnecessary currently, but I'm imagining a future
+  // where you can highlight ranges
   select(query) {
     return query(this);
   }
 
+  // for debugging purposes
   toString() {
     return `${this.name} ${this.code} ${this.element} ${this.residue} ${this.chain} ${this.coordinates}`;
   }
 
+  // I should probably all the stuff -- I wonder if Object.assign({}, this) would just
+  // have everything
   toObject() {
     return {
       name: this.name,
@@ -219,17 +224,28 @@ export class PDB {
 
   #backbones() {
     return this.chains.map((chain) => {
-      return {
-        name: chain.name,
-        atoms: chain.residues.map((residue) => {
-          return residue.atoms.filter((atom) => atom.name === "CA").pop();
-        })
-      };
+        return {
+            name: chain.name,
+            // Filter out any undefined atoms and only keep valid CA atoms
+            atoms: chain.residues
+                .map((residue) => {
+                    const caAtom = residue.atoms.filter((atom) => atom.name === "CA")[0];
+                    return caAtom;  // Return undefined if no CA atom found
+                })
+                .filter(atom => atom !== undefined)  // Remove any undefined atoms
+        };
     });
   }
 
   #coordinates(atoms = this.atoms) {
-    return atoms.map((atom) => atom.coordinates);
+    // Filter out any atoms that don't have valid coordinates -- this is if you get it from
+    // rcsb ...  if you fold a sequence on alphafold server, it will always have coordinates
+    return atoms
+        .filter(atom => atom && atom.coordinates && 
+                typeof atom.coordinates.x === 'number' &&
+                typeof atom.coordinates.y === 'number' &&
+                typeof atom.coordinates.z === 'number')
+        .map((atom) => atom.coordinates);
   }
 
   #chain_coordinates() {
@@ -241,21 +257,31 @@ export class PDB {
     });
   }
 
+  // I probably went overboard w/ getters for private computed values ... but it
+  // feels cleaner!
   #chain_backbone_coordinates() {
-    return this.backbones.map((backbone) => {
-      return {
-        name: backbone.name,
-        coordinates: this.#coordinates(backbone.atoms)
-      };
-    });
+    return this.backbones
+        .filter(backbone => backbone.atoms.length > 0)  // Only include chains with atoms
+        .map((backbone) => {
+            return {
+                name: backbone.name,
+                coordinates: this.#coordinates(backbone.atoms)
+            };
+        })
+        .filter(chain => chain.coordinates.length > 0);  // Only include chains with coordinates
   }
 
+  // this is a bit hacky cause I had to clobber it together towards the end
+  // basically the range of coordinates for structure files is way larger than
+  // the webGL domain.  So we have to normalize the distances to somethign reasonable
+  // for it to show up at all with reasonable zoom values.
   normalizeCoordinates(data) {
     // Helper function to find max absolute value recursively
     const findMaxAbs = (item) => {
         if (Array.isArray(item)) {
             return Math.max(...item.map(findMaxAbs));
         }
+        // need a conditions to deal with atoms that don't have coordinates
         if (item && typeof item === 'object') {
             if ('x' in item && 'y' in item && 'z' in item) {
                 return Math.max(Math.abs(item.x), Math.abs(item.y), Math.abs(item.z));
@@ -266,6 +292,7 @@ export class PDB {
     };
 
     // Helper function to normalize coordinates recursively
+    // if you're using chains vs you have a nested structure
     const normalize = (item, maxAbs) => {
         if (Array.isArray(item)) {
             return item.map(i => normalize(i, maxAbs));
@@ -293,11 +320,11 @@ export class PDB {
   }
 
   distance(atom1, atom2) {
-    // stuff in case I ever want to make a jsMol
+    // placeholder case I ever want to make jsMol :)
   }
 
   select(query) {
-    // stuff "
+    // stuff -- functions on Atom.query -- have to think about implementation
   }
 }
 

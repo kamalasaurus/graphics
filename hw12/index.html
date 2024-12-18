@@ -99,8 +99,23 @@
           
           const normalizedChains = pdb.normalizeCoordinates(window.pdb.chain_backbone_coordinates);
           
+          if (!normalizedChains || normalizedChains.length === 0) {
+            console.error("No valid chains found in PDB file");
+            return;
+          }
+
           normalizedChains.forEach((chain, i) => {
+            if (!chain.coordinates || chain.coordinates.length === 0) {
+              console.warn(`Chain ${chain.name} has no valid coordinates`);
+              return;
+            }
+
             const points = chain.coordinates.flatMap(coord => [coord.x, coord.y, coord.z]);
+            if (points.some(val => typeof val !== 'number' || isNaN(val))) {
+              console.warn(`Chain ${chain.name} has invalid coordinate values`);
+              return;
+            }
+
             const sampledPoints = [];
             for(let j = 0; j < points.length; j += 9) {
               sampledPoints.push(points[j], points[j+1], points[j+2]);
@@ -109,8 +124,15 @@
             if (sampledPoints.length >= 12) {
               const splinePoints = CatmullRom(sampledPoints, 3);
               prebuiltSplines.push(Spline(glContext, splinePoints));
+            } else {
+              console.warn(`Chain ${chain.name} has too few points for spline`);
             }
           });
+
+          if (prebuiltSplines.length === 0) {
+            console.error("No valid splines could be created from PDB file");
+            return;
+          }
 
           canvas.zoom = 0.5;
           canvas.rx = 0;
