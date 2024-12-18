@@ -6,6 +6,7 @@ let vertexShader = `
    void main() {
       vec4 pos = uVMatrix * uMatrix * vec4(aPos, 1.0);
       gl_Position = pos;
+      gl_PointSize = 3.0;  // This makes vertices slightly larger
    }
 `;
 

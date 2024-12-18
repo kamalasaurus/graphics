@@ -3,14 +3,43 @@
   <head>
     <meta charset="utf-8">
     <title>Page Title</title>
+    <style>
+      body, html {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
+      canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+      }
+      .controls {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        padding: 20px;
+        background: rgba(255, 255, 255, 0.8);
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        backdrop-filter: blur(5px);
+      }
+      .controls > * {
+        margin: 5px 0;
+      }
+    </style>
   </head>
   <body>
-    <div style="margin: 10px;">
+    <canvas id="canvas"></canvas>
+    <div class="controls">
       <form id="uploadPDB">
         <input type="file" name="file" id="file">
         <input type="submit" value="upload">
       </form>
-      
       <div style="margin-top: 10px;">
         Or select an example:
         <select id="examplePDB">
@@ -20,7 +49,6 @@
         </select>
       </div>
     </div>
-    <canvas id="canvas" width=900 height=700></canvas>
     <script src="pdb.js" type="module"></script>
     <script src="lib.js"></script>
     <script src="splines.js" type="module"></script>
@@ -28,9 +56,35 @@
       import { PDB } from './pdb.js';
       import { CatmullRom } from './splines.js';
 
-      let prebuiltSplines = [];
+      const canvas = document.getElementById('canvas');
       const glContext = startGL(canvas);
       trackMouse(canvas);
+
+      function resizeCanvas() {
+        // Get the device pixel ratio
+        const dpr = window.devicePixelRatio || 1;
+        
+        // Get the size of the canvas in CSS pixels.
+        const displayWidth = window.innerWidth;
+        const displayHeight = window.innerHeight;
+        
+        // Set the canvas size in actual pixels
+        canvas.width = Math.floor(displayWidth * dpr);
+        canvas.height = Math.floor(displayHeight * dpr);
+        
+        // Set the canvas CSS size
+        canvas.style.width = displayWidth + 'px';
+        canvas.style.height = displayHeight + 'px';
+        
+        // Update the viewport to match
+        glContext.viewport(0, 0, canvas.width, canvas.height);
+      }
+
+      // Initial size and event listener
+      resizeCanvas();
+      window.addEventListener('resize', resizeCanvas);
+
+      let prebuiltSplines = [];
 
       // Initial test spline
       const testPoints = [-2.0, -2.0, 0.0, 0.0, 2.0, 0.0, 2.0, -2.0, 0.0];
@@ -89,7 +143,9 @@
 
       function getColorForIndex(i, total) {
         const hue = (i / total) * 360;
-        const h = hue / 360, s = 0.8, l = 0.5;
+        const h = hue / 360;
+        const s = 1.0;
+        const l = 0.4;
         let r, g, b;
 
         if (s === 0) {
@@ -118,17 +174,27 @@
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
         VM.identity()
-          .perspective(3)
-          .scale(0.1 * canvas.zoom, 0.1 * canvas.zoom * canvas.width/canvas.height, 0.1 * canvas.zoom)
-          .move(0, 0, -20);
+            .perspective(3)
+            .scale(0.1 * canvas.zoom, 0.1 * canvas.zoom * canvas.width/canvas.height, 0.1 * canvas.zoom)
+            .move(0, 0, -20);
 
+        // Draw each spline twice with slight offset for thicker appearance
         prebuiltSplines.forEach((spline, i) => {
-          M.S()
-            .scale(10)
-            .turnX(canvas.ry/100)
-            .turnY(canvas.rx/100)
-            .draw(spline, getColorForIndex(i, prebuiltSplines.length))
-          .R();
+            const color = getColorForIndex(i, prebuiltSplines.length);
+            M.S()
+                .scale(10)
+                .turnX(canvas.ry/100)
+                .turnY(canvas.rx/100)
+                .move(0.001, 0.001, 0)  // Slight offset for first pass
+                .draw(spline, color)
+            .R();
+            M.S()
+                .scale(10)
+                .turnX(canvas.ry/100)
+                .turnY(canvas.rx/100)
+                .move(-0.001, -0.001, 0)  // Slight offset for second pass
+                .draw(spline, color)
+            .R();
         });
       }
       requestAnimationFrame(drawFrame);

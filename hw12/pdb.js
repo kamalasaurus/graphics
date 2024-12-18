@@ -293,11 +293,11 @@ export class PDB {
   }
 
   distance(atom1, atom2) {
-    // stuff
+    // stuff in case I ever want to make a jsMol
   }
 
   select(query) {
-    // stuff
+    // stuff "
   }
 }
 
