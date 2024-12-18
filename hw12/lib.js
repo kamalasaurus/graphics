@@ -131,14 +131,6 @@ let VM = new Matrix();
 VM.identity();
 
 let draw = (shape, color) => {
-    console.log("Drawing shape:", {
-        type: shape.type,
-        count: shape.count,
-        color: color,
-        // Sample first few vertices
-        vertices: Array.from(shape.mesh).slice(0, 9)
-    });
-    
     gl.uniform3fv(uColor, color);
     gl.uniformMatrix4fv(uVMatrix, false, VM.get());
     gl.uniformMatrix4fv(uMatrix, false, M.get());

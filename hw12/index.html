@@ -28,85 +28,50 @@
       import { PDB } from './pdb.js';
       import { CatmullRom } from './splines.js';
 
-      let pbd, lineCoords;
-      let prebuiltSplines = [];  // Array to store our pre-built splines
-
-      // Initialize WebGL first
-      trackMouse(canvas);
+      let prebuiltSplines = [];
       const glContext = startGL(canvas);
+      trackMouse(canvas);
 
-      // Then create our test spline
-      const testPoints = [
-        -2.0, -2.0, 0.0,
-         0.0,  2.0, 0.0,
-         2.0, -2.0, 0.0
-      ].flat();
+      // Initial test spline
+      const testPoints = [-2.0, -2.0, 0.0, 0.0, 2.0, 0.0, 2.0, -2.0, 0.0];
       prebuiltSplines.push(Spline(glContext, testPoints));
 
-      // After creating the test spline
-      console.log("Test spline:", prebuiltSplines[0]);
-
-      // Handle PDB file uploads
-      document.getElementById('uploadPDB').addEventListener('submit', async function(e) {
-        e.preventDefault();
-        let file = document.getElementById('file').files[0];
+      async function processPDBFile(file) {
         try {
           window.pdb = await PDB.fromFile(file);
-          prebuiltSplines = [];  // Clear previous splines
+          prebuiltSplines = [];
           
           const normalizedChains = pdb.normalizeCoordinates(window.pdb.chain_backbone_coordinates);
           
           normalizedChains.forEach((chain, i) => {
             const points = chain.coordinates.flatMap(coord => [coord.x, coord.y, coord.z]);
-            
-            // Verify points are in valid range
-            const minMax = points.reduce((acc, val) => ({
-              min: Math.min(acc.min, val),
-              max: Math.max(acc.max, val)
-            }), {min: Infinity, max: -Infinity});
-            console.log(`Chain ${i} range:`, minMax);
-
-            // Verify no NaN or undefined values
-            const hasInvalid = points.some(val => isNaN(val) || val === undefined);
-            if (hasInvalid) {
-                console.error(`Chain ${i} has invalid values!`);
-                return;
-            }
-
-            // Sample points more densely
             const sampledPoints = [];
-            for(let j = 0; j < points.length; j += 9) { // Take every 3rd point instead of every 10th
-                sampledPoints.push(
-                    points[j], points[j+1], points[j+2]
-                );
+            for(let j = 0; j < points.length; j += 9) {
+              sampledPoints.push(points[j], points[j+1], points[j+2]);
             }
             
-            // Make sure we have enough points for spline
-            if (sampledPoints.length >= 12) { // Need at least 4 points
-                const splinePoints = CatmullRom(sampledPoints, 3);
-                const spline = Spline(glContext, splinePoints);
-                prebuiltSplines.push(spline);
-            } else {
-                console.warn(`Chain ${i} has too few points for spline`);
+            if (sampledPoints.length >= 12) {
+              const splinePoints = CatmullRom(sampledPoints, 3);
+              prebuiltSplines.push(Spline(glContext, splinePoints));
             }
           });
 
-          // Log final splines array
-          console.log("Final splines:", prebuiltSplines);
-
-          // Adjust view for loaded PDB
           canvas.zoom = 0.5;
           canvas.rx = 0;
           canvas.ry = 0;
-
-          // Force a redraw
-          gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         } catch (error) {
-          console.error("Error loading PDB file:", error);
+          console.error("Error processing PDB file:", error);
         }
+      }
+
+      // Handle file upload
+      document.getElementById('uploadPDB').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        let file = document.getElementById('file').files[0];
+        await processPDBFile(file);
       });
 
-      // Add handler for example PDB selection
+      // Handle example selection
       document.getElementById('examplePDB').addEventListener('change', async function(e) {
         const selection = e.target.value;
         if (!selection) return;
@@ -115,103 +80,36 @@
           const response = await fetch(`${selection}.pdb`);
           if (!response.ok) throw new Error('Failed to fetch PDB file');
           const text = await response.text();
-          
-          // Create a synthetic file object
-          const file = new File([text], `${selection}.pdb`, {
-            type: 'text/plain',
-          });
-
-          window.pdb = await PDB.fromFile(file);
-          prebuiltSplines = [];  // Clear previous splines
-          
-          const normalizedChains = pdb.normalizeCoordinates(window.pdb.chain_backbone_coordinates);
-          
-          normalizedChains.forEach((chain, i) => {
-            const points = chain.coordinates.flatMap(coord => [coord.x, coord.y, coord.z]);
-            
-            // Verify points are in valid range
-            const minMax = points.reduce((acc, val) => ({
-              min: Math.min(acc.min, val),
-              max: Math.max(acc.max, val)
-            }), {min: Infinity, max: -Infinity});
-            console.log(`Chain ${i} range:`, minMax);
-
-            // Verify no NaN or undefined values
-            const hasInvalid = points.some(val => isNaN(val) || val === undefined);
-            if (hasInvalid) {
-                console.error(`Chain ${i} has invalid values!`);
-                return;
-            }
-
-            // Sample points more densely
-            const sampledPoints = [];
-            for(let j = 0; j < points.length; j += 9) { // Take every 3rd point instead of every 10th
-                sampledPoints.push(
-                    points[j], points[j+1], points[j+2]
-                );
-            }
-            
-            // Make sure we have enough points for spline
-            if (sampledPoints.length >= 12) { // Need at least 4 points
-                const splinePoints = CatmullRom(sampledPoints, 3);
-                const spline = Spline(glContext, splinePoints);
-                prebuiltSplines.push(spline);
-            } else {
-                console.warn(`Chain ${i} has too few points for spline`);
-            }
-          });
-
-          // Log final splines array
-          console.log("Final splines:", prebuiltSplines);
-
-          // Adjust view for loaded PDB
-          canvas.zoom = 0.5;
-          canvas.rx = 0;
-          canvas.ry = 0;
-
-          // Force a redraw
-          gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+          const file = new File([text], `${selection}.pdb`, { type: 'text/plain' });
+          await processPDBFile(file);
         } catch (error) {
           console.error("Error loading example PDB:", error);
         }
       });
 
       function getColorForIndex(i, total) {
-        // Use HSL to generate evenly spaced colors
-        // Hue: rotate around color wheel
-        // Saturation: keep high for vibrant colors
-        // Lightness: keep moderate for visibility on white background
         const hue = (i / total) * 360;
-        const saturation = 0.8;
-        const lightness = 0.5;
-
-        // Convert HSL to RGB
-        const h = hue / 360;
-        const s = saturation;
-        const l = lightness;
-
+        const h = hue / 360, s = 0.8, l = 0.5;
         let r, g, b;
 
         if (s === 0) {
-            r = g = b = l;
+          r = g = b = l;
         } else {
-            const hue2rgb = (p, q, t) => {
-                if (t < 0) t += 1;
-                if (t > 1) t -= 1;
-                if (t < 1/6) return p + (q - p) * 6 * t;
-                if (t < 1/2) return q;
-                if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
-                return p;
-            };
+          const hue2rgb = (p, q, t) => {
+            if (t < 0) t += 1;
+            if (t > 1) t -= 1;
+            if (t < 1/6) return p + (q - p) * 6 * t;
+            if (t < 1/2) return q;
+            if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+            return p;
+          };
 
-            const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-            const p = 2 * l - q;
-
-            r = hue2rgb(p, q, h + 1/3);
-            g = hue2rgb(p, q, h);
-            b = hue2rgb(p, q, h - 1/3);
+          const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+          const p = 2 * l - q;
+          r = hue2rgb(p, q, h + 1/3);
+          g = hue2rgb(p, q, h);
+          b = hue2rgb(p, q, h - 1/3);
         }
-
         return [r, g, b];
       }
 
@@ -220,16 +118,16 @@
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
         VM.identity()
-            .perspective(3)
-            .scale(0.1 * canvas.zoom, 0.1 * canvas.zoom * canvas.width/canvas.height, 0.1 * canvas.zoom)
-            .move(0, 0, -20);
+          .perspective(3)
+          .scale(0.1 * canvas.zoom, 0.1 * canvas.zoom * canvas.width/canvas.height, 0.1 * canvas.zoom)
+          .move(0, 0, -20);
 
         prebuiltSplines.forEach((spline, i) => {
           M.S()
-              .scale(10)
-              .turnX(canvas.ry/100)
-              .turnY(canvas.rx/100)
-              .draw(spline, getColorForIndex(i, prebuiltSplines.length))
+            .scale(10)
+            .turnX(canvas.ry/100)
+            .turnY(canvas.rx/100)
+            .draw(spline, getColorForIndex(i, prebuiltSplines.length))
           .R();
         });
       }
