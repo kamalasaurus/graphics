@@ -158,7 +158,8 @@ export class PDB {
   }
 
   get chain_backbone_coordinates() {
-    return this.#chain_backbone_coordinates();
+    const coords = this.#chain_backbone_coordinates();
+    return this.normalizeCoordinates(coords);
   }
 
   #residues(chain = this.atoms) {
@@ -247,6 +248,48 @@ export class PDB {
         coordinates: this.#coordinates(backbone.atoms)
       };
     });
+  }
+
+  normalizeCoordinates(data) {
+    // Helper function to find max absolute value recursively
+    const findMaxAbs = (item) => {
+        if (Array.isArray(item)) {
+            return Math.max(...item.map(findMaxAbs));
+        }
+        if (item && typeof item === 'object') {
+            if ('x' in item && 'y' in item && 'z' in item) {
+                return Math.max(Math.abs(item.x), Math.abs(item.y), Math.abs(item.z));
+            }
+            return Math.max(...Object.values(item).map(findMaxAbs));
+        }
+        return 0;
+    };
+
+    // Helper function to normalize coordinates recursively
+    const normalize = (item, maxAbs) => {
+        if (Array.isArray(item)) {
+            return item.map(i => normalize(i, maxAbs));
+        }
+        if (item && typeof item === 'object') {
+            if ('x' in item && 'y' in item && 'z' in item) {
+                return {
+                    ...item,
+                    x: item.x / maxAbs,
+                    y: item.y / maxAbs,
+                    z: item.z / maxAbs
+                };
+            }
+            const result = {};
+            for (const [key, value] of Object.entries(item)) {
+                result[key] = normalize(value, maxAbs);
+            }
+            return result;
+        }
+        return item;
+    };
+
+    const maxAbs = findMaxAbs(data);
+    return normalize(data, maxAbs);
   }
 
   distance(atom1, atom2) {
