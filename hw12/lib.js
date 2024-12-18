@@ -116,7 +116,7 @@ let startGL = canvas => {
    uMatrix = gl.getUniformLocation(program, "uMatrix");
    uVMatrix = gl.getUniformLocation(program, "uVMatrix");
    
-   gl.clearColor(1.0, 1.0, 1.0, 1.0);  // White background
+   gl.clearColor(0, 0, 0, 1.0);  // White background
    gl.enable(gl.DEPTH_TEST);
    gl.enable(gl.BLEND);
    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
