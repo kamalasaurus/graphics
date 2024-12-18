@@ -5,10 +5,21 @@
     <title>Page Title</title>
   </head>
   <body>
-    <form id="uploadPDB">
-      <input type="file" name="file" id="file">
-      <input type="submit" value="upload">
-    </form>
+    <div style="margin: 10px;">
+      <form id="uploadPDB">
+        <input type="file" name="file" id="file">
+        <input type="submit" value="upload">
+      </form>
+      
+      <div style="margin-top: 10px;">
+        Or select an example:
+        <select id="examplePDB">
+          <option value="">Select a PDB</option>
+          <option value="zar1">ZAR1</option>
+          <option value="rps2">RPS2</option>
+        </select>
+      </div>
+    </div>
     <canvas id="canvas" width=900 height=700></canvas>
     <script src="pdb.js" type="module"></script>
     <script src="lib.js"></script>
@@ -92,6 +103,76 @@
           gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         } catch (error) {
           console.error("Error loading PDB file:", error);
+        }
+      });
+
+      // Add handler for example PDB selection
+      document.getElementById('examplePDB').addEventListener('change', async function(e) {
+        const selection = e.target.value;
+        if (!selection) return;
+
+        try {
+          const response = await fetch(`${selection}.pdb`);
+          if (!response.ok) throw new Error('Failed to fetch PDB file');
+          const text = await response.text();
+          
+          // Create a synthetic file object
+          const file = new File([text], `${selection}.pdb`, {
+            type: 'text/plain',
+          });
+
+          window.pdb = await PDB.fromFile(file);
+          prebuiltSplines = [];  // Clear previous splines
+          
+          const normalizedChains = pdb.normalizeCoordinates(window.pdb.chain_backbone_coordinates);
+          
+          normalizedChains.forEach((chain, i) => {
+            const points = chain.coordinates.flatMap(coord => [coord.x, coord.y, coord.z]);
+            
+            // Verify points are in valid range
+            const minMax = points.reduce((acc, val) => ({
+              min: Math.min(acc.min, val),
+              max: Math.max(acc.max, val)
+            }), {min: Infinity, max: -Infinity});
+            console.log(`Chain ${i} range:`, minMax);
+
+            // Verify no NaN or undefined values
+            const hasInvalid = points.some(val => isNaN(val) || val === undefined);
+            if (hasInvalid) {
+                console.error(`Chain ${i} has invalid values!`);
+                return;
+            }
+
+            // Sample points more densely
+            const sampledPoints = [];
+            for(let j = 0; j < points.length; j += 9) { // Take every 3rd point instead of every 10th
+                sampledPoints.push(
+                    points[j], points[j+1], points[j+2]
+                );
+            }
+            
+            // Make sure we have enough points for spline
+            if (sampledPoints.length >= 12) { // Need at least 4 points
+                const splinePoints = CatmullRom(sampledPoints, 3);
+                const spline = Spline(glContext, splinePoints);
+                prebuiltSplines.push(spline);
+            } else {
+                console.warn(`Chain ${i} has too few points for spline`);
+            }
+          });
+
+          // Log final splines array
+          console.log("Final splines:", prebuiltSplines);
+
+          // Adjust view for loaded PDB
+          canvas.zoom = 0.5;
+          canvas.rx = 0;
+          canvas.ry = 0;
+
+          // Force a redraw
+          gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        } catch (error) {
+          console.error("Error loading example PDB:", error);
         }
       });
 
